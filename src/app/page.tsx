@@ -369,7 +369,8 @@ export default function MenuPage() {
           Мурманск · Средиземноморье
         </p>
         <p className="colophon__currency">
-          Цены указаны в рублях · ◆ — фирменные позиции
+          Цены указаны в рублях
+          <br />◆ — фирменные позиции
         </p>
       </footer>
 
