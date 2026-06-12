@@ -140,7 +140,7 @@ function RakiContent() {
           <thead>
             <tr>
               <th className="matrix__tier" scope="col">
-                Размер · шт/кг
+                Размер · <span className="no-break">шт/кг</span>
               </th>
               {rakiChapter.preparations.map((prep) => (
                 <th key={prep.id} scope="col">

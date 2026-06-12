@@ -765,6 +765,10 @@ img {
   border-bottom: 1px solid var(--hairline-soft);
 }
 
+.no-break {
+  white-space: nowrap;
+}
+
 /* На самых узких экранах (старые SE, 320px) шапке «Размер · шт/кг»
    разрешён перенос — иначе упирается в колонку «Варёные» */
 @media (max-width: 359px) {
