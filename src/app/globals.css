@@ -765,6 +765,17 @@ img {
   border-bottom: 1px solid var(--hairline-soft);
 }
 
+/* На самых узких экранах (старые SE, 320px) шапке «Размер · шт/кг»
+   разрешён перенос — иначе упирается в колонку «Варёные» */
+@media (max-width: 359px) {
+  .matrix thead th.matrix__tier {
+    white-space: normal;
+    line-height: 1.5;
+    letter-spacing: 0.1em;
+    padding-right: var(--space-xs);
+  }
+}
+
 .matrix tbody tr + tr td,
 .matrix tbody tr + tr th {
   border-top: 1px solid var(--hairline-soft);
