@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { ChapterNav } from "@/components/chapter-nav";
 import { RevealObserver } from "@/components/reveal-observer";
 import {
@@ -60,21 +61,25 @@ function Divider({
   title,
   origin,
   image,
+  chapterId,
+  eager,
 }: {
   numeral: string;
   title: string;
   origin?: string;
   image: { src: string; width: number; height: number };
+  chapterId: string;
+  eager?: boolean;
 }) {
   return (
-    <div className="divider">
+    <div className="divider" data-chapter={chapterId}>
       <div className="divider__media" aria-hidden>
         <img
           src={image.src}
           width={image.width}
           height={image.height}
           alt=""
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
         />
       </div>
       <div className="divider__inner reveal">
@@ -126,12 +131,16 @@ function RakiContent() {
       ) : null}
 
       <div className="matrix reveal">
-        <p className="matrix__caption">Цена за килограмм, ₽</p>
+        <p className="matrix__caption">Цена за килограмм</p>
         <table>
+          <colgroup>
+            <col className="matrix__col-tier" />
+            <col span={3} className="matrix__col-price" />
+          </colgroup>
           <thead>
             <tr>
               <th className="matrix__tier" scope="col">
-                Размер
+                Размер · шт/кг
               </th>
               {rakiChapter.preparations.map((prep) => (
                 <th key={prep.id} scope="col">
@@ -145,7 +154,7 @@ function RakiContent() {
               <tr key={size.tier}>
                 <th className="matrix__tier" scope="row">
                   <b>{size.tier}</b>
-                  <span>{size.countPerKg} / кг</span>
+                  <span>{size.countPerKg}</span>
                 </th>
                 {size.prices.map((price, index) => (
                   <td key={rakiChapter.preparations[index].id}>
@@ -167,20 +176,24 @@ function RakiContent() {
             <p className="raki__recipes">
               <span className="raki__recipes-label">{prep.recipesLabel}</span>
               {prep.recipes.map((recipe, index) => (
-                <span key={recipe.name}>
-                  {recipe.name}
-                  {recipe.extra ? (
-                    <>
-                      {" "}
-                      <span className="raki__recipe-extra">
-                        +{formatNumber(recipe.extra)}
-                      </span>
-                    </>
-                  ) : null}
-                  {index < prep.recipes.length - 1 ? (
-                    <span className="raki__sep"> · </span>
-                  ) : null}
-                </span>
+                <Fragment key={recipe.name}>
+                  {/* Юнит «рецепт + надбавка + ·» неразрывен; перенос —
+                      только на пробеле между юнитами */}
+                  <span className="raki__unit">
+                    {recipe.name}
+                    {recipe.extra ? (
+                      <>
+                        {" "}
+                        <span className="raki__recipe-extra">
+                          +{formatNumber(recipe.extra)}
+                        </span>
+                      </>
+                    ) : null}
+                    {index < prep.recipes.length - 1 ? (
+                      <span className="raki__sep"> ·</span>
+                    ) : null}
+                  </span>{" "}
+                </Fragment>
               ))}
             </p>
           </div>
@@ -297,8 +310,11 @@ export default function MenuPage() {
           </h1>
           <span className="cover__rule" aria-hidden />
           <span className="cover__sub">Меню</span>
+          <span className="cover__year">MMXXVI</span>
         </div>
-        <span className="cover__hint">листайте</span>
+        <span className="cover__hint">
+          <span>листайте</span>
+        </span>
         <span className="cover__arch" aria-hidden />
       </header>
 
@@ -311,6 +327,8 @@ export default function MenuPage() {
             title={rakiChapter.title}
             origin={rakiChapter.origin}
             image={DIVIDER_IMAGES.raki}
+            chapterId="raki"
+            eager
           />
           <RakiContent />
         </section>
@@ -326,6 +344,7 @@ export default function MenuPage() {
                   title={chapter.title}
                   origin={chapter.origin}
                   image={dividerImage}
+                  chapterId={chapter.id}
                 />
               ) : null}
               <StandardChapter
@@ -342,11 +361,16 @@ export default function MenuPage() {
         <p className="colophon__wordmark">
           The <em>Raki</em>
         </p>
+        <p className="colophon__est">Москва · с 2017</p>
         <p className="colophon__service">Заказ примет ваш официант.</p>
         <p className="colophon__origins">
-          Ростов-на-Дону · Магадан · Камчатка · Мурманск
+          Ростов-на-Дону · Магадан · Камчатка
+          <br />
+          Мурманск · Средиземноморье
         </p>
-        <p className="colophon__currency">Цены указаны в рублях</p>
+        <p className="colophon__currency">
+          Цены указаны в рублях · ◆ — фирменные позиции
+        </p>
       </footer>
 
       <RevealObserver />

@@ -10,6 +10,7 @@ export type NavChapter = { id: string; label: string };
 export function ChapterNav({ chapters }: { chapters: NavChapter[] }) {
   const [activeId, setActiveId] = useState(chapters[0]?.id ?? "");
   const navRef = useRef<HTMLElement | null>(null);
+  const threadRef = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
     let frame = 0;
@@ -23,6 +24,12 @@ export function ChapterNav({ chapters }: { chapters: NavChapter[] }) {
         if (el.getBoundingClientRect().top <= probe) current = chapter.id;
       }
       setActiveId(current);
+      // Золотая нить прогресса — без setState, чтобы не рендерить на скролл
+      if (threadRef.current) {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+        threadRef.current.style.transform = `scaleX(${progress.toFixed(4)})`;
+      }
     };
     const onScroll = () => {
       if (!frame) frame = window.requestAnimationFrame(update);
@@ -63,6 +70,7 @@ export function ChapterNav({ chapters }: { chapters: NavChapter[] }) {
           </button>
         ))}
       </div>
+      <span className="nav__thread" ref={threadRef} aria-hidden />
     </nav>
   );
 }

@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // Без плавающего «N»-бейджа в dev — чистые скриншоты для владельцев
+  devIndicators: false,
 };
 
 export default nextConfig;

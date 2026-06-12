@@ -3,13 +3,13 @@
 import { useEffect } from "react";
 
 // Один наблюдатель на страницу: всё с классом .reveal плавно проявляется
-// при попадании в кадр. Анимация чисто CSS — см. globals.css.
+// при попадании в кадр; .divider получает is-in для медленного «оседания»
+// фото (scale 1.07 -> 1). Анимация чисто CSS — см. globals.css.
 export function RevealObserver() {
   useEffect(() => {
+    const targets = document.querySelectorAll<HTMLElement>(".reveal, .divider");
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      document
-        .querySelectorAll<HTMLElement>(".reveal")
-        .forEach((el) => el.classList.add("is-in"));
+      targets.forEach((el) => el.classList.add("is-in"));
       return;
     }
     const observer = new IntersectionObserver(
@@ -23,9 +23,7 @@ export function RevealObserver() {
       },
       { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
     );
-    document
-      .querySelectorAll<HTMLElement>(".reveal")
-      .forEach((el) => observer.observe(el));
+    targets.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 

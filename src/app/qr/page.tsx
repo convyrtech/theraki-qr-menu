@@ -1,37 +1,68 @@
 "use client";
 
-import QRCode from "qrcode";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MENU_URL } from "@/data/menu";
 
 // Печатный лист карточек для столов: A4, две карточки A6 (105x148 мм).
 // QR ~40 мм — уверенное сканирование с 30-45 см за столом при вечернем свете.
+// Стилизованные модули (скруглённые точки, мягкие «глаза») вместо дефолтных
+// квадратов; контраст остаётся чернила-по-крему — сканируемость не страдает.
 // ?url=https://... переопределяет адрес без пересборки.
+
+const QR_STYLE = {
+  width: 600,
+  height: 600,
+  type: "svg" as const,
+  margin: 0,
+  qrOptions: { errorCorrectionLevel: "Q" as const },
+  dotsOptions: { type: "rounded" as const, color: "#101c1e" },
+  cornersSquareOptions: { type: "extra-rounded" as const, color: "#101c1e" },
+  cornersDotOptions: { type: "dot" as const, color: "#101c1e" },
+  backgroundOptions: { color: "transparent" },
+};
+
+function StyledQr({ url }: { url: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let disposed = false;
+    const node = ref.current;
+    if (!node) return;
+    // qr-code-styling трогает DOM/canvas — грузим только в браузере.
+    import("qr-code-styling").then(({ default: QRCodeStyling }) => {
+      if (disposed || !node) return;
+      node.replaceChildren();
+      const qr = new QRCodeStyling({ ...QR_STYLE, data: url });
+      qr.append(node);
+      const svg = node.querySelector("svg");
+      if (svg) {
+        svg.removeAttribute("width");
+        svg.removeAttribute("height");
+      }
+    });
+    return () => {
+      disposed = true;
+      node?.replaceChildren();
+    };
+  }, [url]);
+
+  return (
+    <div
+      ref={ref}
+      className="qr-card__code"
+      role="img"
+      aria-label={`QR-код меню: ${url}`}
+    />
+  );
+}
+
 export default function QrSheetPage() {
   const [url, setUrl] = useState(MENU_URL);
-  const [svg, setSvg] = useState<string>("");
 
   useEffect(() => {
     const override = new URLSearchParams(window.location.search).get("url");
     if (override) setUrl(override);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    QRCode.toString(url, {
-      type: "svg",
-      errorCorrectionLevel: "M",
-      margin: 0,
-      color: { dark: "#101c1e", light: "#0000" },
-    })
-      .then((code) => {
-        if (!cancelled) setSvg(code);
-      })
-      .catch(() => setSvg(""));
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
 
   const shortUrl = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
@@ -45,11 +76,7 @@ export default function QrSheetPage() {
         <span className="qr-card__title">Меню</span>
       </header>
       <div className="qr-card__arch">
-        <div
-          className="qr-card__code"
-          aria-label={`QR-код меню: ${url}`}
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+        <StyledQr url={url} />
         <span className="qr-card__url">{shortUrl}</span>
       </div>
       <p className="qr-card__hint">Наведите камеру, чтобы открыть меню</p>
@@ -79,6 +106,7 @@ export default function QrSheetPage() {
         <p className="qr-toolbar__note">
           Лист A4 — две карточки A6 под тейбл-тент. Матовая ламинация,
           печать из браузера в 100% масштабе (без «вписать в страницу»).
+          Перед тиражом проверить скан с 30–40 см при вечернем свете.
         </p>
       </div>
       <div className="qr-sheet">
