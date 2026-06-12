@@ -1,0 +1,31 @@
+{
+  "name": "theraki-qr-menu",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack --port 3010",
+    "build": "next build",
+    "build:clean": "node -e \"require('node:fs').rmSync('.next', { recursive: true, force: true })\" && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "images": "node scripts/optimize-images.mjs",
+    "verify": "npm run lint && npm run build:clean"
+  },
+  "dependencies": {
+    "next": "^15.3.3",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@types/node": "^22.15.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^9.28.0",
+    "eslint-config-next": "^15.3.3",
+    "sharp": "^0.34.1",
+    "typescript": "^5.8.3"
+  }
+}
