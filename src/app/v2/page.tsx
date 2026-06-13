@@ -1,16 +1,15 @@
-import { Fragment } from "react";
 import { ChapterNav } from "@/components/chapter-nav";
 import {
   chapters,
   formatNumber,
   rakiChapter,
   type Chapter,
-  type MenuEntry,
 } from "@/data/menu";
+import { ExpandRow, RakiPrepRow } from "./expandable";
 import "./ledger.css";
 
-// Прототип-направление «Прейскурантъ»: те же данные, другой язык.
-// Без полноэкранной обложки, без фото — один типографический объект.
+// Направление «Прейскурантъ» + тап-модель плотности.
+// По умолчанию только название · размер · цена; всё остальное — под тап.
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
 const NAV_LABELS: Record<string, string> = {
@@ -25,34 +24,20 @@ const NAV_LABELS: Record<string, string> = {
   drinks: "Напитки",
 };
 
-function LedgerRow({ entry }: { entry: MenuEntry }) {
+function ChapterHead({
+  numeral,
+  title,
+  origin,
+}: {
+  numeral: string;
+  title: string;
+  origin?: string;
+}) {
   return (
-    <div className="led__row">
-      <div className="led__row-line">
-        <span className="led__row-name">
-          {entry.name}
-          {entry.signature ? (
-            <span className="led__sig" title="Фирменная позиция">
-              ◆
-            </span>
-          ) : null}
-        </span>
-        <span className="led__leader" aria-hidden />
-        <span className="led__price">
-          {formatNumber(entry.price)}
-          {entry.unit ? <span className="led__unit">{entry.unit}</span> : null}
-        </span>
-      </div>
-      {entry.note ? <p className="led__note">{entry.note}</p> : null}
-      {entry.variants?.length ? (
-        <div className="led__variants">
-          {entry.variants.map((v) => (
-            <span key={v.label}>
-              {v.label} — {formatNumber(v.price)}
-            </span>
-          ))}
-        </div>
-      ) : null}
+    <div className="led__chapter-head">
+      <span className="led__numeral">№ {numeral}</span>
+      <h2 className="led__chapter-title">{title}</h2>
+      {origin ? <span className="led__origin">{origin}</span> : <span />}
     </div>
   );
 }
@@ -60,12 +45,7 @@ function LedgerRow({ entry }: { entry: MenuEntry }) {
 function RakiSection() {
   return (
     <section className="led__chapter" id="ch-raki" aria-label="Раки">
-      <div className="led__chapter-head">
-        <span className="led__numeral">№ {ROMAN[0]}</span>
-        <h2 className="led__chapter-title">{rakiChapter.title}</h2>
-        <span className="led__origin">{rakiChapter.origin}</span>
-      </div>
-      {rakiChapter.lede ? <p className="led__lede">{rakiChapter.lede}</p> : null}
+      <ChapterHead numeral={ROMAN[0]} title={rakiChapter.title} origin={rakiChapter.origin} />
 
       <div className="led__matrix">
         <p className="led__matrix-caption">Цена за килограмм</p>
@@ -77,7 +57,7 @@ function RakiSection() {
           <thead>
             <tr>
               <th className="led__tier" scope="col">
-                Размер · шт/кг
+                Размер · <span className="led__nowrap">шт/кг</span>
               </th>
               {rakiChapter.preparations.map((prep) => (
                 <th key={prep.id} scope="col">
@@ -104,32 +84,9 @@ function RakiSection() {
         </table>
       </div>
 
-      <div>
+      <div className="led__rows led__rows--prep">
         {rakiChapter.preparations.map((prep) => (
-          <div className="led__prep" key={prep.id}>
-            <h3 className="led__prep-title">{prep.title}</h3>
-            <p className="led__recipes">
-              <span className="led__recipes-label">{prep.recipesLabel}</span>
-              {prep.recipes.map((recipe, index) => (
-                <Fragment key={recipe.name}>
-                  <span className="led__recipe-unit">
-                    {recipe.name}
-                    {recipe.extra ? (
-                      <>
-                        {" "}
-                        <span className="led__recipe-extra">
-                          +{formatNumber(recipe.extra)}
-                        </span>
-                      </>
-                    ) : null}
-                    {index < prep.recipes.length - 1 ? (
-                      <span className="led__sep"> ·</span>
-                    ) : null}
-                  </span>{" "}
-                </Fragment>
-              ))}
-            </p>
-          </div>
+          <RakiPrepRow key={prep.id} prep={prep} />
         ))}
       </div>
 
@@ -151,23 +108,12 @@ function StandardSection({
 }) {
   return (
     <section className="led__chapter" id={`ch-${chapter.id}`} aria-label={chapter.title}>
-      <div className="led__chapter-head">
-        <span className="led__numeral">№ {numeral}</span>
-        <h2 className="led__chapter-title">{chapter.title}</h2>
-        {chapter.origin ? (
-          <span className="led__origin">{chapter.origin}</span>
-        ) : (
-          <span />
-        )}
-      </div>
-      {chapter.lede ? <p className="led__lede">{chapter.lede}</p> : null}
-
+      <ChapterHead numeral={numeral} title={chapter.title} origin={chapter.origin} />
       <div className="led__rows">
         {chapter.entries.map((entry) => (
-          <LedgerRow key={entry.name} entry={entry} />
+          <ExpandRow key={entry.name} entry={entry} />
         ))}
       </div>
-
       {chapter.footnotes?.map((note) => (
         <p className="led__footnote" key={note}>
           {note}
