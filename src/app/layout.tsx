@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import {
   Cormorant_Garamond,
+  Golos_Text,
   JetBrains_Mono,
   Manrope,
   Prata,
+  Spectral,
 } from "next/font/google";
 import "./globals.css";
 
@@ -39,6 +41,24 @@ const cormorant = Cormorant_Garamond({
   display: "swap",
 });
 
+// Прототип-направление «Прейскурантъ» (/v2): институциональная пара —
+// Spectral (редакционная антиква, голос) + Golos Text (русский гротеск,
+// метки и форма ведомости). Цифры — JetBrains Mono, как котировки.
+const spectral = Spectral({
+  subsets: ["latin", "cyrillic"],
+  weight: ["300", "400"],
+  style: ["normal", "italic"],
+  variable: "--font-spectral",
+  display: "swap",
+});
+
+const golos = Golos_Text({
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "500"],
+  variable: "--font-golos",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "The Raki — меню",
   description:
@@ -63,6 +83,8 @@ export default function RootLayout({
         jetbrainsMono.variable,
         prata.variable,
         cormorant.variable,
+        spectral.variable,
+        golos.variable,
       ].join(" ")}
     >
       <body>{children}</body>

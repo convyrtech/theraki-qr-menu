@@ -4,10 +4,31 @@ import { useEffect, useRef, useState } from "react";
 
 export type NavChapter = { id: string; label: string };
 
+export type NavClasses = {
+  nav: string;
+  inner: string;
+  link: string;
+  thread?: string;
+};
+
+const DEFAULT_CLASSES: NavClasses = {
+  nav: "nav",
+  inner: "nav__inner",
+  link: "nav__link",
+  thread: "nav__thread",
+};
+
 // Закреплённая навигация по главам со scroll-spy.
 // Активная глава определяется по последнему заголовку, прошедшему
 // верхнюю кромку, — устойчивее IntersectionObserver на длинных главах.
-export function ChapterNav({ chapters }: { chapters: NavChapter[] }) {
+// classes позволяет переиспользовать логику с другим оформлением (/v2).
+export function ChapterNav({
+  chapters,
+  classes = DEFAULT_CLASSES,
+}: {
+  chapters: NavChapter[];
+  classes?: NavClasses;
+}) {
   const [activeId, setActiveId] = useState(chapters[0]?.id ?? "");
   const navRef = useRef<HTMLElement | null>(null);
   const threadRef = useRef<HTMLSpanElement | null>(null);
@@ -56,13 +77,13 @@ export function ChapterNav({ chapters }: { chapters: NavChapter[] }) {
   };
 
   return (
-    <nav className="nav" ref={navRef} aria-label="Главы меню">
-      <div className="nav__inner">
+    <nav className={classes.nav} ref={navRef} aria-label="Главы меню">
+      <div className={classes.inner}>
         {chapters.map((chapter) => (
           <button
             key={chapter.id}
             type="button"
-            className="nav__link"
+            className={classes.link}
             data-active={activeId === chapter.id || undefined}
             onClick={() => jump(chapter.id)}
           >
@@ -70,7 +91,9 @@ export function ChapterNav({ chapters }: { chapters: NavChapter[] }) {
           </button>
         ))}
       </div>
-      <span className="nav__thread" ref={threadRef} aria-hidden />
+      {classes.thread ? (
+        <span className={classes.thread} ref={threadRef} aria-hidden />
+      ) : null}
     </nav>
   );
 }
