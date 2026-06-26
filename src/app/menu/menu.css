@@ -142,6 +142,14 @@
 .mn__dish.has-photo .mn__dish-desc { grid-column: 2 / -1; }
 .mn__sig { color: #be9667; margin-left: 5px; }
 
+/* мини-заголовок под-группы в длинной главе (Воды/Газировки/Соки) — ритм вместо простыни */
+.mn__group {
+  margin: 28px 0 2px;
+  font-family: var(--font-golos, sans-serif);
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #be9667;
+}
+.mn__group:first-child { margin-top: 12px; }
+
 /* подзаголовок раздела (lede) — вместо убранного origin */
 .mn__ch-lede {
   display: block; margin: 1px 0 0;

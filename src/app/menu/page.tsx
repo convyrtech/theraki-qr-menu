@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { chapters, rakiChapter, formatNumber, type MenuEntry } from "@/data/menu";
 import "./menu.css";
 import "../wheel/wheel.css"; // переиспользуем готовое боковое колесо (.cat*) с анимациями
@@ -18,6 +18,7 @@ const RAKI_SECTION = {
     note: `${s.countPerKg} шт/кг`,
     signature: false,
     spicy: false,
+    group: undefined as string | undefined,
   })),
 };
 
@@ -203,12 +204,14 @@ export default function Menu() {
             {sec.id === "raki" ? (
               <RakiBlock />
             ) : (
-              sec.entries.map((e) => {
+              sec.entries.map((e, i) => {
                 const photo = DISH_PHOTO[e.name];
+                const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
                 return (
+                  <Fragment key={e.name}>
+                  {showGroup ? <div className="mn__group">{e.group}</div> : null}
                   <button
                     className={"mn__dish" + (photo ? " has-photo" : "")}
-                    key={e.name}
                     type="button"
                     onClick={() => setDetail(e)}
                   >
@@ -223,6 +226,7 @@ export default function Menu() {
                     <span className="mn__dish-price">{formatNumber(e.price) + " ₽"}</span>
                     {e.note ? <span className="mn__dish-desc">{e.note}</span> : null}
                   </button>
+                  </Fragment>
                 );
               })
             )}

@@ -34,6 +34,8 @@ export type MenuEntry = {
   spicy?: boolean;
   /** Путь к фото блюда (миниатюра в строке), напр. «/images/hot-grenki.webp». */
   photo?: string;
+  /** Под-группа внутри длинной главы (мини-заголовок): «Воды», «Соки», «Газировки». */
+  group?: string;
 };
 
 export type Chapter = {
@@ -438,25 +440,27 @@ export const chapters: Chapter[] = [
     title: "Безалкогольные",
     lede: "Воды, соки, газировки.",
     entries: [
-      { name: "4 воды Абрау Дюрсо, без газа", price: 400, unit: "0,75 л" },
-      { name: "4 воды Абрау Дюрсо, с газом", price: 200, unit: "0,25 л" },
+      { name: "4 воды Абрау Дюрсо, без газа", price: 400, unit: "0,75 л", group: "Воды" },
+      { name: "4 воды Абрау Дюрсо, с газом", price: 200, unit: "0,25 л", group: "Воды" },
       {
         name: "Сан Бенедетто, без газа",
         price: 300,
         unit: "0,25 л",
         variants: [{ label: "0,75 л", price: 790 }],
+        group: "Воды",
       },
-      { name: "Боржоми", price: 300, unit: "0,5 л" },
+      { name: "Боржоми", price: 300, unit: "0,5 л", group: "Воды" },
+      { name: "Кока-кола (Грузия), стекло", price: 300, unit: "0,33 л", group: "Газировки" },
+      { name: "Кока-кола Zero, ж/б", price: 300, unit: "0,33 л", group: "Газировки" },
+      { name: "Фанта, ж/б", price: 400, unit: "0,33 л", group: "Газировки" },
       {
         name: "Сок YOGA",
         note: "Вкусы: яблоко · персик · груша · вишня.",
         price: 490,
         unit: "0,2 л",
+        group: "Соки и морсы",
       },
-      { name: "Кока-кола (Грузия), стекло", price: 300, unit: "0,33 л" },
-      { name: "Кока-кола Zero, ж/б", price: 300, unit: "0,33 л" },
-      { name: "Фанта, ж/б", price: 400, unit: "0,33 л" },
-      { name: "Кокосовая вода (Таиланд), ж/б", price: 400, unit: "0,35 л" },
+      { name: "Кокосовая вода (Таиланд), ж/б", price: 400, unit: "0,35 л", group: "Соки и морсы" },
       {
         name: "Квас разливной",
         price: 100,
@@ -465,12 +469,14 @@ export const chapters: Chapter[] = [
           { label: "0,5 л", price: 200 },
           { label: "1 л", price: 350 },
         ],
+        group: "Соки и морсы",
       },
       {
         name: "Морс клюквенный",
         price: 270,
         unit: "0,25 л",
         variants: [{ label: "1 л", price: 950 }],
+        group: "Соки и морсы",
       },
     ],
   },
