@@ -1,0 +1,8 @@
+rembg>=2.0.50
+onnxruntime
+pillow
+numpy
+# force modern numba/llvmlite: the versions rembg->pymatting pulls by default
+# (numba 0.53 / llvmlite 0.36) only build on Python <3.10.
+numba>=0.59.1
+llvmlite>=0.42.0

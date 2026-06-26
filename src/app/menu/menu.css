@@ -1,0 +1,367 @@
+/* ============================================================
+   The Raki — QR-меню, Вариант «колесо по кнопке».
+   Список блюд + приподнятая кнопка категорий → полноэкранный
+   оверлей с вертикальным колесом по ЦЕНТРУ (палец далеко от
+   кромки Safari, крупные цели, rAF только пока оверлей открыт).
+   Cream доминирует, бирюза/золото — акценты.
+   ============================================================ */
+
+.mn {
+  min-height: 100dvh;
+  background:
+    radial-gradient(120% 60% at 50% 0%, #f7f1e3 0%, #f2e8d5 50%, #efe4cd 100%);
+  color: #101c1e;
+  font-family: var(--font-golos, "Golos Text", system-ui), sans-serif;
+  padding-bottom: calc(140px + env(safe-area-inset-bottom));
+}
+
+/* -------- masthead -------- */
+.mn__top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  text-align: center;
+  padding: calc(16px + env(safe-area-inset-top)) 22px 12px;
+  background: linear-gradient(to bottom, #f4efe1 62%, rgba(244,239,225,0));
+  transition: padding 0.3s ease;
+}
+.mn.is-scrolled .mn__top { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: 8px; }
+.mn__brand {
+  font-family: "Fraunces", "Cormorant Garamond", serif;
+  font-weight: 300; font-size: 24px; line-height: 1;
+  transition: font-size 0.3s ease;
+}
+.mn.is-scrolled .mn__brand { font-size: 17px; }
+.mn__brand em { font-style: italic; }
+.mn__active-cat {
+  display: block; margin-top: 5px;
+  font-size: 9.5px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: rgba(16,28,30,0.5);
+}
+
+/* -------- секции + блюда -------- */
+.mn__section { padding: 30px 22px 8px; scroll-margin-top: 78px; }
+.mn__ch {
+  font-family: "Fraunces", "Cormorant Garamond", serif;
+  font-weight: 500; font-size: clamp(30px, 8.4vw, 40px);
+  line-height: 1.06; margin: 0 0 4px;
+}
+.mn__ch-origin {
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: rgba(16,28,30,0.45);
+}
+.mn__rule { height: 1px; background: rgba(16,28,30,0.1); margin: 18px 0 4px; }
+
+.mn__dish {
+  display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 12px;
+  width: 100%; text-align: left;
+  background: none; border: 0;
+  padding: 22px 0; border-bottom: 1px solid rgba(16,28,30,0.07);
+  cursor: pointer;
+}
+.mn__dish:last-child { border-bottom: 0; }
+.mn__dish-photo {
+  grid-row: 1 / span 3; width: 116px; height: 116px; object-fit: contain;
+  filter: drop-shadow(0 11px 13px rgba(60,40,20,0.2)); margin-right: 6px;
+}
+.mn__dish.has-photo { grid-template-columns: 116px 1fr auto; }
+.mn__dish-name {
+  font-family: "Fraunces", "Cormorant Garamond", serif;
+  font-size: 22px; line-height: 1.18; color: #101c1e;
+}
+.mn__dish-price {
+  font-family: var(--font-mono, monospace);
+  font-weight: 500; font-size: 17px; color: #101c1e; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.mn__dish-desc {
+  grid-column: 1 / -1; font-size: 14.5px; line-height: 1.62;
+  color: rgba(58,50,42,0.56); margin-top: 12px; max-width: 42ch;
+}
+.mn__dish.has-photo .mn__dish-desc { grid-column: 2 / -1; }
+.mn__sig { color: #be9667; margin-left: 5px; }
+
+/* подзаголовок раздела (lede) — вместо убранного origin */
+.mn__ch-lede {
+  display: block; margin: 1px 0 0;
+  font-family: "Cormorant Garamond", serif; font-style: italic;
+  font-size: 17px; line-height: 1.2; color: rgba(58,50,42,0.62);
+}
+
+/* маркеры из дока: чили (острота) / помидор — выверенные вручную глифы */
+.mn__mark { display: inline-flex; align-items: center; vertical-align: -2px; margin-left: 7px; }
+.mn__glyph { width: 14px; height: 14px; flex: 0 0 auto; }
+.mn__glyph--chili { color: #c0492f; }
+.mn__glyph--tomato { color: #c24a34; }
+
+/* -------- РАКИ: доска размеров + рецепты -------- */
+.mn__raki-board { margin-top: 4px; }
+/* лесенка размеров: буквы растут S→XXL (font-size инлайном), выровнены по базовой линии */
+.mn__raki-size {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 11px 0; border-bottom: 1px solid rgba(16,28,30,0.07);
+}
+.mn__raki-size:last-child { border-bottom: 0; }
+.mn__raki-tier {
+  font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
+  color: #101c1e; line-height: 0.85; letter-spacing: -0.01em;
+  min-width: 1.4em;
+}
+.mn__raki-pieces {
+  font-family: var(--font-mono, monospace); font-size: 13px;
+  letter-spacing: 0.02em; color: rgba(58,50,42,0.62); font-variant-numeric: tabular-nums;
+}
+.mn__raki-price {
+  font-family: var(--font-mono, monospace); font-weight: 500; font-size: 17px;
+  color: #101c1e; font-variant-numeric: tabular-nums; white-space: nowrap;
+  margin-left: auto;
+}
+.mn__raki-unit { color: rgba(16,28,30,0.4); font-weight: 400; }
+
+.mn__preps { margin-top: 28px; display: grid; gap: 24px; }
+.mn__prep-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 13px; }
+.mn__prep-title { font-family: "Fraunces", "Cormorant Garamond", serif; font-size: 21px; color: #101c1e; }
+.mn__prep-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #be9667; }
+.mn__recipes { display: flex; flex-wrap: wrap; gap: 8px; }
+.mn__recipe {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 14px;
+  border: 1px solid rgba(16,28,30,0.14); border-radius: 999px;
+  background: rgba(255,255,255,0.26);
+  font-family: var(--font-golos, sans-serif); font-size: 14.5px; color: #2a2620;
+}
+.mn__recipe.is-spicy { border-color: rgba(192,73,47,0.4); }
+.mn__recipe .mn__mark { margin-left: 2px; }
+.mn__recipe-extra { font-family: var(--font-mono, monospace); font-size: 11px; color: rgba(16,28,30,0.5); }
+
+.mn__footnote {
+  margin: 20px 0 0;
+  font-family: "Cormorant Garamond", serif; font-style: italic;
+  font-size: 13px; line-height: 1.4; color: rgba(58,50,42,0.6);
+}
+
+/* подсказка «увеличить» на фото-блюде */
+.mn__dish-zoom {
+  grid-column: 2 / -1; justify-self: start; margin-top: 9px;
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #be9667;
+}
+
+/* -------- крупная карточка блюда (bottom-sheet, тап по позиции) -------- */
+.mn__detail { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
+.mn__detail-bg {
+  position: absolute; inset: 0; border: 0; cursor: pointer;
+  background: rgba(24,18,10,0.5);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  animation: mn-sheet-in 0.3s both;
+}
+.mn__detail-card {
+  position: relative; z-index: 1; width: 100%;
+  background: radial-gradient(120% 90% at 50% 0%, #f7f1e3 0%, #f2e8d5 70%, #ece0c9 100%);
+  border-radius: 28px 28px 0 0;
+  padding: 30px 24px calc(30px + env(safe-area-inset-bottom));
+  box-shadow: 0 -18px 44px rgba(16,28,30,0.32);
+  animation: mn-detail-up 0.38s cubic-bezier(0.22,1,0.36,1) both;
+  max-height: 92dvh; overflow-y: auto;
+}
+@keyframes mn-detail-up { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.mn__detail-x {
+  position: absolute; top: 16px; right: 16px;
+  width: 40px; height: 40px; border: 1px solid rgba(16,28,30,0.16); border-radius: 12px;
+  background: rgba(255,255,255,0.4); color: #11201f;
+  display: grid; place-content: center; cursor: pointer;
+}
+.mn__detail-photo {
+  display: block; width: 76%; max-width: 330px; height: auto; margin: 6px auto 20px;
+  filter: drop-shadow(0 20px 28px rgba(60,40,20,0.32));
+}
+.mn__detail-name {
+  font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
+  font-size: clamp(26px, 7.4vw, 33px); line-height: 1.1; margin: 0 0 14px; color: #101c1e;
+}
+.mn__detail-desc { font-size: 16.5px; line-height: 1.6; color: rgba(58,50,42,0.82); margin: 0 0 20px; }
+.mn__detail-foot { display: flex; align-items: baseline; gap: 10px; }
+.mn__detail-price {
+  font-family: var(--font-mono, monospace); font-weight: 600; font-size: 25px;
+  color: #101c1e; font-variant-numeric: tabular-nums;
+}
+.mn__detail-unit { font-size: 15px; color: rgba(16,28,30,0.5); }
+.mn__detail-variants { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.mn__detail-variant {
+  font-family: var(--font-mono, monospace); font-size: 13px; color: rgba(16,28,30,0.7);
+  border: 1px solid rgba(16,28,30,0.14); border-radius: 999px; padding: 7px 13px;
+}
+
+/* -------- кнопка категорий (приподнята над кромкой Safari) -------- */
+.mn__catbtn {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 40;
+  display: inline-flex; align-items: center; gap: 11px;
+  padding: 13px 22px 13px 17px;
+  background: #11201f; color: #f2e8d5;
+  border: 0; border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(16,28,30,0.32);
+  cursor: pointer;
+}
+.mn__catbtn svg { width: 19px; height: 19px; stroke: #be9667; fill: none; stroke-width: 1.4; }
+.mn__catbtn-label {
+  font-family: var(--font-golos, sans-serif);
+  font-size: 13px; letter-spacing: 0.04em; font-weight: 500;
+}
+.mn__catbtn-hint {
+  font-size: 8.5px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: rgba(242,232,213,0.5); padding-left: 9px; border-left: 1px solid rgba(242,232,213,0.22);
+}
+
+/* -------- оверлей-лист с колесом -------- */
+.mn__sheet {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column;
+  animation: mn-sheet-in 0.34s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes mn-sheet-in { from { opacity: 0; } to { opacity: 1; } }
+.mn__sheet-bg {
+  position: absolute; inset: 0; border: 0; cursor: pointer;
+  /* плотный cream-слой: читаемость колеса не зависит от backdrop-blur
+     (его рендер нестабилен), blur — приятный бонус поверх */
+  background:
+    radial-gradient(120% 70% at 50% 46%, rgba(247,241,227,0.99) 0%, rgba(238,227,205,0.97) 60%, rgba(232,221,200,0.98) 100%);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+}
+.mn__sheet-head {
+  position: relative; z-index: 1;
+  text-align: center;
+  padding: calc(30px + env(safe-area-inset-top)) 22px 0;
+}
+.mn__sheet-eyebrow {
+  display: block; font-size: 8px; letter-spacing: 0.34em; text-transform: uppercase;
+  color: rgba(16,28,30,0.45); margin-bottom: 7px;
+}
+.mn__sheet-title {
+  font-family: "Fraunces", "Cormorant Garamond", serif;
+  font-weight: 400; font-size: 30px; line-height: 1; color: #11201f;
+}
+
+/* колесо занимает центр экрана — палец крутит ВДАЛИ от кромки */
+.mn__wheel {
+  position: relative; z-index: 1;
+  flex: 1;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+}
+/* фокус-зона по центру: куда встаёт выбранная категория */
+.mn__wheel-focus {
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  height: 96px; transform: translateY(-50%);
+  pointer-events: none;
+  border-top: 1px solid rgba(190,150,103,0.4);
+  border-bottom: 1px solid rgba(190,150,103,0.4);
+  background: linear-gradient(to right, rgba(190,150,103,0) 0%, rgba(190,150,103,0.07) 50%, rgba(190,150,103,0) 100%);
+}
+.mn__wcat {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 150px; margin-left: -75px; margin-top: -52px;
+  display: flex; align-items: center; gap: 14px;
+  padding-left: 30px;
+  background: none; border: 0; cursor: pointer;
+  color: rgba(16,28,30,0.55);
+  will-change: transform, opacity;
+}
+.mn__wcat-face {
+  flex: 0 0 auto;
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 34%, #f8f2e5, #efe3cd 72%, #e7d9bd);
+  box-shadow: inset 0 0 0 1px rgba(190,150,103,0.4), 0 5px 12px rgba(16,28,30,0.12);
+  display: grid; place-items: center; overflow: visible;
+  transition: box-shadow 0.25s ease;
+}
+.mn__wcat-face img { width: 122%; height: 122%; object-fit: contain; filter: drop-shadow(0 5px 6px rgba(16,28,30,0.28)); }
+.mn__wcat-face svg { width: 30px; height: 30px; stroke: #be9667; fill: none; stroke-width: 1.1; opacity: 0.7; }
+.mn__wcat-label {
+  font-family: "Fraunces", "Cormorant Garamond", serif;
+  font-size: 23px; line-height: 1.05; color: rgba(16,28,30,0.7);
+  white-space: nowrap;
+}
+.mn__wcat.is-focus { color: #11201f; }
+.mn__wcat.is-focus .mn__wcat-face { box-shadow: inset 0 0 0 1.5px #be9667, 0 9px 18px rgba(16,28,30,0.2); }
+.mn__wcat.is-focus .mn__wcat-label { color: #11201f; }
+
+.mn__sheet-close {
+  position: relative; z-index: 1;
+  margin: 0 auto calc(26px + env(safe-area-inset-bottom));
+  padding: 13px 30px;
+  background: rgba(255,255,255,0.4); color: #11201f;
+  border: 1px solid rgba(16,28,30,0.16); border-radius: 999px;
+  font-family: var(--font-golos, sans-serif);
+  font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; cursor: pointer;
+}
+
+/* -------- оверлей = боковое колесо /wheel (.cat*), доп. правила -------- */
+.cat--overlay {
+  z-index: 60;
+  animation: mn-sheet-in 0.34s cubic-bezier(0.22,1,0.36,1) both;
+}
+/* медальоны кликабельны — тап по кружку выбирает категорию (драг всё равно крутит) */
+.cat--overlay .cat__dish { pointer-events: auto; }
+.cat--overlay .cat__disc { cursor: pointer; }
+/* появление текста карточки БЕЗ блюра (на «N позиц.» блюр смотрелся бредово) */
+.cat--overlay .cat__detail[data-anim] .cat__d-name,
+.cat--overlay .cat__detail[data-anim] .cat__d-desc {
+  animation-name: mn-rise;
+}
+@keyframes mn-rise {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.cat__close {
+  width: 42px; height: 42px;
+  border: 1px solid rgba(16,28,30,0.18); border-radius: 11px;
+  background: rgba(255,255,255,0.3);
+  display: grid; place-content: center; color: #11201f; cursor: pointer;
+}
+.cat__disc-icon { display: grid; place-items: center; }
+.cat__disc-icon svg { width: 46px; height: 46px; stroke: #be9667; fill: none; stroke-width: 1.1; opacity: 0.62; }
+.cat__d-eyebrow {
+  display: block; font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase;
+  color: #be9667; margin-bottom: 8px;
+}
+
+/* -------- полировка по ревью: тап-фидбэк, тап-таргеты, контраст, фокус, дуга -------- */
+.mn__catbtn:active { transform: translateX(-50%) scale(0.97); }
+/* медальон: быстрый фидбэк нажатия (box-shadow, чтобы не конфликтовать с JS-transform) */
+.cat--overlay .cat__disc { transition: transform 0.45s cubic-bezier(0.22,1,0.36,1), box-shadow 0.15s ease; }
+.cat--overlay .cat__disc:active { box-shadow: inset 0 0 0 2px #be9667, 0 10px 22px rgba(16,28,30,0.26); }
+/* фокус-категория без фото: глиф перестаёт быть самым блёклым пятном */
+.cat--overlay .cat__dish.is-focus .cat__disc-icon svg { opacity: 1; stroke-width: 1.35; }
+/* тап-таргеты ≥44px у выходов оверлея */
+.cat--overlay .cat__close { width: 44px; height: 44px; }
+.cat--overlay .cat__d-more { padding: 14px 20px; }
+/* контраст служебного текста (читаемость в тёплом свете зала) */
+.cat--overlay .cat__hint { color: rgba(16,28,30,0.6); font-size: 10px; }
+.cat--overlay .cat__eyebrow { color: rgba(16,28,30,0.5); }
+/* дуга-трасса читается как намеренная, а не «три кружка в пустоте» */
+.cat--overlay .cat__rail { border-color: #c4ad80; }
+
+/* ФОКУС-БЛЮДО «вырастает из тарелки»: картинка выходит за круг = объём.
+   Плавно (ease-out 0.55s), не рывком. Тарелка не клипает (overflow visible). */
+.cat--overlay .cat__disc { overflow: visible; }
+.cat--overlay .cat__disc img {
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.45s ease;
+  transform-origin: 50% 46%;
+}
+.cat--overlay .cat__dish.is-focus .cat__disc img {
+  transform: scale(1.4);
+  filter: drop-shadow(0 20px 22px rgba(16,28,30,0.36));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mn__top, .mn__brand, .mn__sheet, .cat--overlay { transition: none; animation: none; }
+}

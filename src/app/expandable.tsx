@@ -11,6 +11,15 @@ import {
 // Описание и доп. форматы — под раскрытие. Анимация высоты через
 // grid-template-rows 0fr→1fr (Safari 16+; иначе мгновенно, контент не теряется).
 
+// Русская плюрализация: 1 рецепт · 2–4 рецепта · 5+ рецептов.
+function plural(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
 function Toggle({ open }: { open: boolean }) {
   return (
     <span className="led__toggle" data-open={open || undefined} aria-hidden>
@@ -97,7 +106,10 @@ export function RakiPrepRow({ prep }: { prep: RakiPreparation }) {
         <Toggle open={open} />
         <span className="led__row-name led__prep-name">{prep.title}</span>
         <span className="led__leader" aria-hidden />
-        <span className="led__prep-count">{prep.recipes.length} рецептов</span>
+        <span className="led__prep-count">
+          {prep.recipes.length}{" "}
+          {plural(prep.recipes.length, "рецепт", "рецепта", "рецептов")}
+        </span>
       </button>
       <div className="led__detail" id={detailId} role="region">
         <div className="led__detail-inner">

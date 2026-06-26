@@ -384,6 +384,12 @@
   width: 34%;
 }
 
+/* Одноколоночная доска раков: цена прижата вправо, как в строках карты. */
+.led__matrix--solo thead th + th,
+.led__matrix--solo tbody td {
+  text-align: right;
+}
+
 .led__matrix th,
 .led__matrix td {
   font-family: var(--mono);

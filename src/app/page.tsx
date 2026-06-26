@@ -10,18 +10,28 @@ import "./ledger.css";
 
 // The Raki — электронное меню зала. Направление «Прейскурантъ» + тап-модель
 // плотности: по умолчанию только название · размер · цена; остальное под тап.
-const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+const ROMAN = [
+  "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
+  "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX",
+];
 
 const NAV_LABELS: Record<string, string> = {
   raki: "Раки",
-  shrimp: "Креветки",
-  tails: "Шейки",
   crab: "Краб",
+  shrimp: "Креветки",
+  starters: "Закуски",
+  salads: "Салаты",
+  hot: "Горячее",
+  soups: "Супы",
   mussels: "Мидии",
   vongole: "Вонголе",
-  caviar: "Икра",
+  mains: "Основные",
+  garnish: "Гарниры",
+  sauces: "Соусы",
   desserts: "Десерты",
-  drinks: "Напитки",
+  tea: "Чай · кофе",
+  soft: "Воды · соки",
+  beer: "Пиво",
 };
 
 function ChapterHead({
@@ -45,25 +55,21 @@ function ChapterHead({
 function RakiSection() {
   return (
     <section className="led__chapter" id="ch-raki" aria-label="Раки">
-      <ChapterHead numeral={ROMAN[0]} title={rakiChapter.title} origin={rakiChapter.origin} />
+      <ChapterHead numeral={ROMAN[0]} title={rakiChapter.title} />
 
-      <div className="led__matrix">
+      <div className="led__matrix led__matrix--solo">
         <p className="led__matrix-caption">Цена за килограмм</p>
         <table>
           <colgroup>
             <col className="led__col-tier" />
-            <col span={3} />
+            <col />
           </colgroup>
           <thead>
             <tr>
               <th className="led__tier" scope="col">
                 Размер · <span className="led__nowrap">шт/кг</span>
               </th>
-              {rakiChapter.preparations.map((prep) => (
-                <th key={prep.id} scope="col">
-                  {prep.title}
-                </th>
-              ))}
+              <th scope="col">За кг</th>
             </tr>
           </thead>
           <tbody>
@@ -73,11 +79,7 @@ function RakiSection() {
                   <b>{size.tier}</b>
                   <span>{size.countPerKg}</span>
                 </th>
-                {size.prices.map((price, index) => (
-                  <td key={rakiChapter.preparations[index].id}>
-                    {formatNumber(price)}
-                  </td>
-                ))}
+                <td>{formatNumber(size.price)}</td>
               </tr>
             ))}
           </tbody>
@@ -169,7 +171,7 @@ export default function MenuPage() {
         </p>
         <p className="led__colophon-line">Заказ примет ваш официант.</p>
         <p className="led__colophon-meta">
-          Ростов-на-Дону · Магадан · Камчатка · Мурманск
+          Магадан · Камчатка
           <br />
           Цены указаны в рублях · ◆ — фирменные позиции
         </p>
