@@ -77,13 +77,17 @@ function RakiBlock() {
   return (
     <div className="mn__raki">
       <div className="mn__raki-board">
+        <div className="mn__raki-head">
+          <span>Размер</span>
+          <span>шт / кг</span>
+          <span>цена за кг</span>
+        </div>
         {rakiChapter.sizes.map((s, i) => (
           <div className="mn__raki-size" key={s.tier}>
             <span className="mn__raki-tier" style={{ fontSize: `${24 + i * 6}px` }}>{s.tier}</span>
-            <span className="mn__raki-pieces">{s.countPerKg} шт/кг</span>
+            <span className="mn__raki-pieces">{s.countPerKg}</span>
             <span className="mn__raki-price">
-              {formatNumber(s.price) + " ₽"}<span className="mn__raki-unit"> / кг</span>
-            </span>
+              {formatNumber(s.price) + " ₽"}            </span>
           </div>
         ))}
       </div>
