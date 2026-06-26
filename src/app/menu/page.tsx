@@ -120,6 +120,7 @@ export default function Menu() {
   const [active, setActive] = useState("raki");
   const [open, setOpen] = useState(false); // оверлей-колесо категорий
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
+  const [past, setPast] = useState(false); // прокрутили за hero → показать FAB
 
   // scroll-spy: подсветка текущей категории в masthead/кнопке (без гонки — просто active)
   useEffect(() => {
@@ -138,6 +139,17 @@ export default function Menu() {
     );
     secs.forEach((s) => obs.observe(s));
     return () => obs.disconnect();
+  }, []);
+
+  // FAB-кнопка категорий прячется над hero, выезжает после прокрутки в меню
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = 0; setPast(window.scrollY > window.innerHeight * 0.62); });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, []);
 
   // блокируем фоновый скролл, пока открыт оверлей или карточка блюда
@@ -163,6 +175,7 @@ export default function Menu() {
           <span className="mn__hero-eyebrow">Раковарня · Москва</span>
           <h1 className="mn__hero-brand">The <em>Raki</em></h1>
           <span className="mn__hero-sub">Карта раковарни</span>
+          <div className="mn__hero-thread" aria-hidden />
         </div>
         <div className="mn__hero-hint" aria-hidden>
           <span>меню</span>
@@ -215,7 +228,7 @@ export default function Menu() {
       </main>
 
       {/* кнопка категорий — приподнята над кромкой Safari */}
-      <button className="mn__catbtn" type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
+      <button className={"mn__catbtn" + (past ? " is-shown" : "")} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" aria-hidden>
           <rect x="3.5" y="3.5" width="7.4" height="7.4" rx="1.6" />
           <rect x="13.1" y="3.5" width="7.4" height="7.4" rx="1.6" />
