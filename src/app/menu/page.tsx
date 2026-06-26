@@ -143,7 +143,7 @@ export default function Menu() {
     let raf = 0;
     const onScroll = () => {
       if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; setScrolled(window.scrollY > 24); });
+      raf = requestAnimationFrame(() => { raf = 0; setScrolled(window.scrollY > window.innerHeight * 0.72); });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
@@ -165,6 +165,28 @@ export default function Menu() {
 
   return (
     <div className={"mn" + (scrolled ? " is-scrolled" : "")}>
+      <section className="mn__hero" aria-label="The Raki — раковарня">
+        <div className="mn__hero-grain" aria-hidden />
+        <div className="mn__hero-glow" aria-hidden />
+        <div className="mn__hero-inner">
+          <span className="mn__hero-eyebrow">Раковарня · Москва</span>
+          <h1 className="mn__hero-brand">The <em>Raki</em></h1>
+          <span className="mn__hero-sub">Карта раковарни</span>
+        </div>
+        <div className="mn__hero-hint" aria-hidden>
+          <span>меню</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v13M6 12l6 6 6-6" /></svg>
+        </div>
+        <svg className="mn__hero-wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden>
+          <path fill="#f2e8d5" d="M0,42 C240,82 480,12 720,42 C960,72 1200,16 1440,46 L1440,90 L0,90 Z">
+            <animate attributeName="d" dur="8s" repeatCount="indefinite"
+              values="M0,42 C240,82 480,12 720,42 C960,72 1200,16 1440,46 L1440,90 L0,90 Z;
+                      M0,48 C240,14 480,78 720,40 C960,10 1200,72 1440,38 L1440,90 L0,90 Z;
+                      M0,42 C240,82 480,12 720,42 C960,72 1200,16 1440,46 L1440,90 L0,90 Z" />
+          </path>
+        </svg>
+      </section>
+
       <header className="mn__top">
         <span className="mn__brand">The <em>Raki</em></span>
         <span className="mn__active-cat">{LABEL[active] ?? "Меню"}</span>
