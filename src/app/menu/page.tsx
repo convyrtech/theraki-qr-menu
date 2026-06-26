@@ -38,6 +38,7 @@ const CAT_FACE: Record<string, string> = {
   mussels: "/images/cutout/mussels-tomyam.webp",
   vongole: "/images/cutout/vongole-arrabiata.webp",
   salads: "/images/cutout/salads.webp",
+  mains: "/images/cutout/mains.webp",
 };
 
 const CAT_ICON: ReactNode = (
