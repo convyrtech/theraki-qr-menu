@@ -26,12 +26,12 @@
   color: #f2e8d5; overflow: hidden;
 }
 .mn__hero-glow {
-  position: absolute; left: 50%; top: 43%; width: 116vw; height: 72vh;
+  position: absolute; left: 50%; top: 42%; width: 94vw; height: 58vh;
   transform: translate(-50%, -50%); pointer-events: none;
-  /* тёплый золотой источник света за лого + холодный бирюзовый ореол вокруг */
+  /* тёплый золотой источник света за лого (бирюза — уже в фоне hero, не перебивать) */
   background:
-    radial-gradient(closest-side, rgba(214,176,120,0.2) 0%, rgba(190,150,103,0.08) 38%, transparent 60%),
-    radial-gradient(closest-side, rgba(95,182,188,0.26) 0%, transparent 72%);
+    radial-gradient(closest-side, rgba(230,186,122,0.36) 0%, rgba(205,162,106,0.14) 44%, transparent 70%);
+  mix-blend-mode: screen;
 }
 .mn__hero-grain {
   position: absolute; inset: 0; pointer-events: none; opacity: 0.5; mix-blend-mode: overlay;
@@ -227,8 +227,8 @@
 .mn__detail { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .mn__detail-bg {
   position: absolute; inset: 0; border: 0; cursor: pointer;
-  background: rgba(20,15,8,0.72);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  background: rgba(14,10,5,0.96);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   animation: mn-sheet-in 0.3s both;
 }
 .mn__detail-card {
