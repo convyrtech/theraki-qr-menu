@@ -69,11 +69,12 @@
   animation: mn-hero-rise 1.1s cubic-bezier(0.22,1,0.36,1) 0.36s both;
 }
 .mn__hero-thread::after {
-  content: ""; position: absolute; left: -0.75px; top: 0;
-  width: 2.5px; height: 34%;
-  background: linear-gradient(to bottom, transparent, rgba(238,198,140,0.95), transparent);
-  border-radius: 3px; filter: blur(0.4px);
-  animation: mn-thread-flow 3.6s ease-in-out 1.6s infinite;
+  content: ""; position: absolute; left: -1.5px; top: 0;
+  width: 4px; height: 30%;
+  background: linear-gradient(to bottom, transparent, rgba(248,214,156,1) 50%, transparent);
+  border-radius: 4px; filter: blur(0.5px);
+  box-shadow: 0 0 9px 1.5px rgba(238,196,134,0.65);
+  animation: mn-thread-flow 3.4s ease-in-out 1.6s infinite;
 }
 @keyframes mn-thread-flow {
   0% { transform: translateY(-70%); opacity: 0; }
