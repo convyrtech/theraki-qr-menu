@@ -104,7 +104,7 @@
 .mn__section { padding: 30px 22px 8px; scroll-margin-top: 78px; }
 .mn__ch {
   font-family: "Fraunces", "Cormorant Garamond", serif;
-  font-weight: 500; font-size: clamp(30px, 8.4vw, 40px);
+  font-weight: 500; font-size: clamp(27px, 7.7vw, 38px);
   line-height: 1.06; margin: 0 0 4px;
 }
 .mn__ch-origin {
@@ -198,7 +198,7 @@
 .mn__preps { margin-top: 28px; display: grid; gap: 24px; }
 .mn__prep-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 13px; }
 .mn__prep-title { font-family: "Fraunces", "Cormorant Garamond", serif; font-size: 21px; color: #101c1e; }
-.mn__prep-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: #be9667; }
+.mn__prep-label { font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #a9803f; }
 .mn__recipes { display: flex; flex-wrap: wrap; gap: 8px; }
 .mn__recipe {
   display: inline-flex; align-items: center; gap: 7px;
@@ -449,7 +449,7 @@
 /* явный ACTIVE-STATE фокус-медальона (судья: непонятно, что выбрано): остальные приглушены/desat,
    фокус — насыщеннее + золотое кольцо. */
 .cat--overlay .cat__disc {
-  filter: saturate(0.78) brightness(0.985);
+  filter: saturate(0.9) brightness(0.99);
   transition: filter 0.45s ease, box-shadow 0.3s ease, transform 0.45s cubic-bezier(0.22,1,0.36,1);
 }
 .cat--overlay .cat__dish.is-focus .cat__disc {
