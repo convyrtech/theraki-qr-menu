@@ -219,8 +219,8 @@
 .mn__detail { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .mn__detail-bg {
   position: absolute; inset: 0; border: 0; cursor: pointer;
-  background: rgba(24,18,10,0.5);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  background: rgba(20,15,8,0.72);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   animation: mn-sheet-in 0.3s both;
 }
 .mn__detail-card {
@@ -248,12 +248,15 @@
   font-size: clamp(26px, 7.4vw, 33px); line-height: 1.1; margin: 0 0 14px; color: #101c1e;
 }
 .mn__detail-desc { font-size: 16.5px; line-height: 1.6; color: rgba(58,50,42,0.82); margin: 0 0 20px; }
-.mn__detail-foot { display: flex; align-items: baseline; gap: 10px; }
+.mn__detail-foot { display: flex; align-items: baseline; gap: 11px; }
 .mn__detail-price {
-  font-family: var(--font-mono, monospace); font-weight: 600; font-size: 25px;
-  color: #101c1e; font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono, monospace); font-weight: 500; font-size: 23px;
+  letter-spacing: 0.01em; color: #101c1e; font-variant-numeric: tabular-nums;
 }
-.mn__detail-unit { font-size: 15px; color: rgba(16,28,30,0.5); }
+.mn__detail-unit {
+  font-family: "Cormorant Garamond", serif; font-style: italic;
+  font-size: 17px; color: rgba(58,50,42,0.7);
+}
 .mn__detail-variants { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .mn__detail-variant {
   font-family: var(--font-mono, monospace); font-size: 13px; color: rgba(16,28,30,0.7);

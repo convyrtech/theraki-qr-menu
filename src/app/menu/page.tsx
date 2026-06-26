@@ -273,7 +273,7 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
         {entry.note ? <p className="mn__detail-desc">{entry.note}</p> : null}
         <div className="mn__detail-foot">
           <span className="mn__detail-price">{formatNumber(entry.price) + " ₽"}</span>
-          {entry.unit ? <span className="mn__detail-unit">· {entry.unit}</span> : null}
+          {entry.unit ? <span className="mn__detail-unit">за {entry.unit}</span> : null}
         </div>
         {entry.variants?.length ? (
           <div className="mn__detail-variants">
