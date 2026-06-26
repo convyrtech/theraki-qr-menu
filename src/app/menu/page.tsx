@@ -116,7 +116,6 @@ function RakiBlock() {
 
 export default function Menu() {
   const [active, setActive] = useState("raki");
-  const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false); // оверлей-колесо категорий
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
 
@@ -139,16 +138,6 @@ export default function Menu() {
     return () => obs.disconnect();
   }, []);
 
-  useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; setScrolled(window.scrollY > window.innerHeight * 0.72); });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, []);
-
   // блокируем фоновый скролл, пока открыт оверлей или карточка блюда
   useEffect(() => {
     document.body.style.overflow = open || detail ? "hidden" : "";
@@ -164,7 +153,7 @@ export default function Menu() {
   };
 
   return (
-    <div className={"mn" + (scrolled ? " is-scrolled" : "")}>
+    <div className="mn">
       <section className="mn__hero" aria-label="The Raki — раковарня">
         <div className="mn__hero-grain" aria-hidden />
         <div className="mn__hero-glow" aria-hidden />
@@ -186,11 +175,6 @@ export default function Menu() {
           </path>
         </svg>
       </section>
-
-      <header className="mn__top">
-        <span className="mn__brand">The <em>Raki</em></span>
-        <span className="mn__active-cat">{LABEL[active] ?? "Меню"}</span>
-      </header>
 
       <main>
         {SECTIONS.map((sec) => (
