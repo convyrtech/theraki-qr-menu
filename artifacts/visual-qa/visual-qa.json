@@ -1,0 +1,26 @@
+{
+  "target": "http://localhost:3010/menu",
+  "viewports": ["390x844"],
+  "date": "2026-06-26",
+  "checks": [
+    {
+      "id": "G1-overflow",
+      "viewport": "390x844",
+      "status": "PASS",
+      "measured": { "pageHScroll": false },
+      "note": "Страница без горизонтального скролла. 2 'нарушителя' — .mn__hero / .mn__hero-glow (свечение 441px) внутри hero с overflow:hidden → клипаются, визуального overflow нет."
+    },
+    { "id": "G2-render", "viewport": "390x844", "status": "PASS", "note": "Контент рендерится (hero + меню видимы)." },
+    { "id": "G3-console", "viewport": "390x844", "status": "PASS", "measured": { "errors": 0, "warnings": 0, "info": 1 }, "note": "Единственное сообщение — INFO про React DevTools." },
+    {
+      "id": "G4-contrast",
+      "viewport": "390x844",
+      "status": "INCOMPLETE",
+      "contrastIncomplete": true,
+      "note": "Текст hero (cream #f2e8d5) на тёмном marine-градиенте — авто-инструмент не мерит контраст на градиенте. Фактически светлый на тёмном = высокий контраст. Маршрут к человеку."
+    }
+  ],
+  "judge_flags": "pending (async subagent — арт-директор Awwwards-судья, оценка по 6 скриншотам hero/transition/wheel x2/textsection/detail)",
+  "verdict": "DONE_WITH_CONCERNS",
+  "verdict_reason": "Детерминированные G1-G3 зелёные; G4 контраст hero на градиенте = incomplete → пометка человеку (фактически высокий контраст). Мягкий судья (совещательно) в работе для приоритизации полировки до Awwwards."
+}
