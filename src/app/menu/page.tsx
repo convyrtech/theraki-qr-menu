@@ -47,16 +47,15 @@ const CAT_ICON: ReactNode = (
 
 // маркеры из дока: чили — острота, помидор — рецепт «Дон с помидором». Отрисованы вручную, выверены по пикселям.
 const ChiliIcon: ReactNode = (
-  <svg className="mn__glyph mn__glyph--chili" viewBox="0 0 24 24" aria-hidden>
-    <path fill="currentColor" d="M15.6 5.4c2.9 1.3 3.7 5.5 1.2 9.7c-1.9 3.2-4.9 5.2-7 4.1c-1.5-.8-1.5-2.7.3-4.4c2.8-2.6 4.1-5.8 2.9-8.7c-.3-.8 1.3-1.2 2.6-.7z" />
-    <path fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" d="M14.6 4.9c-.6-1.7-2.4-2.3-4-1.5" />
+  <svg className="mn__glyph mn__glyph--chili" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M15.6 5.6c2.7 1.4 3.4 5.4 1.2 9.4c-1.9 3.2-4.9 5.2-7 4.1c-1.5-.8-1.5-2.7.3-4.4c2.7-2.5 4-5.6 3-8.5" />
+    <path d="M14.7 5.1c-.6-1.7-2.4-2.3-4-1.5" />
   </svg>
 );
 const TomatoIcon: ReactNode = (
-  <svg className="mn__glyph mn__glyph--tomato" viewBox="0 0 24 24" aria-hidden>
-    <circle cx="12" cy="14.6" r="6.4" fill="currentColor" />
-    <path fill="currentColor" d="M12 9.2c-.9-1.9-2.7-2.9-4.7-2.6c1 .9 1.2 2 .6 3.2c1.3-.7 2.8-.6 4.1.2c1.3-.8 2.8-.9 4.1-.2c-.6-1.2-.4-2.3.6-3.2c-2-.3-3.8.7-4.7 2.6z" />
-    <path fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" d="M12 8.4V5.4" />
+  <svg className="mn__glyph mn__glyph--tomato" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="14.4" r="6.1" />
+    <path d="M12 8.3V5.3M12 8.3c-1.1-.1-2.1-1-2.5-2.2M12 8.3c1.1-.1 2.1-1 2.5-2.2" />
   </svg>
 );
 

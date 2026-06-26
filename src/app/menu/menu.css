@@ -152,8 +152,8 @@
 /* маркеры из дока: чили (острота) / помидор — выверенные вручную глифы */
 .mn__mark { display: inline-flex; align-items: center; vertical-align: -2px; margin-left: 7px; }
 .mn__glyph { width: 14px; height: 14px; flex: 0 0 auto; }
-.mn__glyph--chili { color: #c0492f; }
-.mn__glyph--tomato { color: #c24a34; }
+.mn__glyph--chili { color: #be6a4a; }
+.mn__glyph--tomato { color: #be9667; }
 
 /* -------- РАКИ: доска размеров + рецепты -------- */
 .mn__raki-board { margin-top: 6px; }
