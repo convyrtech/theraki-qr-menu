@@ -560,7 +560,14 @@ function CategoryWheel({
       if (!moved) {
         const b = (e.target as HTMLElement)?.closest(".cat__dish");
         const di = b?.getAttribute("data-i");
-        if (di != null) onPick(SECTIONS[Math.max(0, Math.min(N - 1, Number(di)))].id);
+        if (di != null) {
+          // поглотить «призрачный» click после закрытия колеса — иначе он проваливается
+          // на карточку блюда под оверлеем и открывает её деталь
+          const swallow = (ev: Event) => { ev.preventDefault(); ev.stopPropagation(); };
+          window.addEventListener("click", swallow, { capture: true, once: true });
+          window.setTimeout(() => window.removeEventListener("click", swallow, true), 500);
+          onPick(SECTIONS[Math.max(0, Math.min(N - 1, Number(di)))].id);
+        }
       }
     };
     const onWheel = (e: WheelEvent) => { e.preventDefault(); rot.current += e.deltaY / 380; vel.current = 0; };
