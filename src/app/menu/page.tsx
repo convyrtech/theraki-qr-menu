@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { chapters, rakiChapter, formatNumber, type MenuEntry } from "@/data/menu";
+import { chapters, rakiChapter, formatNumber, type MenuEntry, type RakiPreparation } from "@/data/menu";
 import "./menu.css";
 import "../wheel/wheel.css"; // переиспользуем готовое боковое колесо (.cat*) с анимациями
 
@@ -81,54 +81,83 @@ const DISH_PHOTO: Record<string, string> = {
   "Португальский суп с раковыми шейками": "/images/soup-port.webp",
 };
 
-/* ---------- РАКИ: доска размеров + рецепты (отварные/жареные), read-only ---------- */
-function RakiBlock() {
+const RAKI_FROM = Math.min(...rakiChapter.sizes.map((s) => s.price));
+
+/* ---------- РАКИ: 2 карточки (отварные/жареные); размеры+рецепты — в детали по тапу ---------- */
+function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
   return (
-    <div className="mn__raki">
-      <div className="mn__raki-board">
-        <div className="mn__raki-head">
-          <span>Размер</span>
-          <span>шт / кг</span>
-          <span>цена за кг</span>
-        </div>
-        {rakiChapter.sizes.map((s, i) => (
-          <div className="mn__raki-size" key={s.tier}>
-            <span className="mn__raki-tier" style={{ fontSize: `${24 + i * 6}px` }}>{s.tier}</span>
-            <span className="mn__raki-pieces">{s.countPerKg}</span>
-            <span className="mn__raki-price">
-              {formatNumber(s.price) + " ₽"}            </span>
+    <div className="mn__cards">
+      {rakiChapter.preparations.map((p, i) => (
+        <button
+          key={p.id}
+          className="mn__card has-photo"
+          type="button"
+          style={{ animationDelay: `${i * 55}ms` }}
+          onClick={() => onOpen(p)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="mn__card-photo"
+            src={p.id === "boiled" ? "/images/raki-boiled.webp" : "/images/raki-fried.webp"}
+            alt={"Раки " + p.title.toLowerCase()}
+            loading="lazy"
+          />
+          <div className="mn__card-body">
+            <h3 className="mn__card-name">Раки {p.title.toLowerCase()}</h3>
+            <span className="mn__card-price">от {formatNumber(RAKI_FROM)} ₽</span>
+            <span className="mn__card-meta">за кг · размеры S–XXL</span>
+            <p className="mn__card-note">{p.recipes.map((r) => r.name).join(" · ")}</p>
           </div>
-        ))}
-      </div>
-
-      <div className="mn__preps">
-        {rakiChapter.preparations.map((p) => (
-          <div className="mn__prep" key={p.id}>
-            <div className="mn__prep-head">
-              <span className="mn__prep-title">{p.title}</span>
-              <span className="mn__prep-label">{p.recipesLabel}</span>
-            </div>
-            <div className="mn__recipes">
-              {p.recipes.map((r) => (
-                <span className={"mn__recipe" + (r.spicy ? " is-spicy" : "")} key={r.name}>
-                  {r.name}
-                  {r.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
-                  {!r.spicy && r.name.toLowerCase().includes("помидор")
-                    ? <span className="mn__mark" title="томат">{TomatoIcon}</span> : null}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {rakiChapter.footnotes?.map((f) => (
-        <p className="mn__footnote" key={f}>{f}</p>
+        </button>
       ))}
     </div>
   );
 }
 
+/* ---------- РАКИ деталь: доска размеров S–XXL + рецепты выбранного способа ---------- */
+function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => void }) {
+  const photo = prep.id === "boiled" ? "/images/raki-boiled.webp" : "/images/raki-fried.webp";
+  return (
+    <div className="mn__detail" role="dialog" aria-modal="true">
+      <button className="mn__detail-bg" type="button" aria-label="Закрыть" onClick={onClose} />
+      <div className="mn__detail-card">
+        <button className="mn__detail-x" type="button" aria-label="Закрыть" onClick={onClose}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="mn__detail-photo" src={photo} alt={"Раки " + prep.title.toLowerCase()} />
+        <h3 className="mn__detail-name">Раки {prep.title.toLowerCase()}</h3>
+        <div className="mn__raki-board">
+          <div className="mn__raki-head">
+            <span>Размер</span>
+            <span>шт / кг</span>
+            <span>цена за кг</span>
+          </div>
+          {rakiChapter.sizes.map((s, idx) => (
+            <div className="mn__raki-size" key={s.tier}>
+              <span className="mn__raki-tier" style={{ fontSize: `${22 + idx * 5}px` }}>{s.tier}</span>
+              <span className="mn__raki-pieces">{s.countPerKg}</span>
+              <span className="mn__raki-price">{formatNumber(s.price) + " ₽"}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mn__prep-head mn__prep-head--detail">
+          <span className="mn__prep-title">{prep.recipesLabel}</span>
+        </div>
+        <div className="mn__recipes">
+          {prep.recipes.map((r) => (
+            <span className={"mn__recipe" + (r.spicy ? " is-spicy" : "")} key={r.name}>
+              {r.name}
+              {r.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
+              {!r.spicy && r.name.toLowerCase().includes("помидор")
+                ? <span className="mn__mark" title="томат">{TomatoIcon}</span> : null}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 /* ---------- ИНТРО: экран приветствия «The Raki» → растворение Роршахом ----------
    Зелёный (наш hero-градиент) дают только маскируемый svg-rect + кляксы, которые
    растут из разных точек и прорезают зелёный → проступает кремовое меню под оверлеем.
@@ -213,6 +242,7 @@ export default function Menu() {
   const [active, setActive] = useState("raki");
   const [open, setOpen] = useState(false); // оверлей-колесо категорий
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
+  const [rakiPrep, setRakiPrep] = useState<RakiPreparation | null>(null); // деталь раков (способ)
   const [introDone, setIntroDone] = useState(false); // интро растворилось
   const handleIntroDone = useCallback(() => setIntroDone(true), []);
 
@@ -237,9 +267,9 @@ export default function Menu() {
 
   // блокируем фоновый скролл: пока идёт интро, открыт оверлей или карточка блюда
   useEffect(() => {
-    document.body.style.overflow = open || detail || !introDone ? "hidden" : "";
+    document.body.style.overflow = open || detail || rakiPrep || !introDone ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [open, detail, introDone]);
+  }, [open, detail, rakiPrep, introDone]);
 
   // §3A: плавное появление карточек/строк/заголовков при входе во вьюпорт (как на сайте).
   // Scroll-sweep (надёжнее IntersectionObserver, который пропускает при быстром скролле):
@@ -295,7 +325,7 @@ export default function Menu() {
             {sec.lede ? <span className="mn__ch-lede">{sec.lede}</span> : null}
             <div className="mn__rule" />
             {sec.id === "raki" ? (
-              <RakiBlock />
+              <RakiBlock onOpen={setRakiPrep} />
             ) : LIST_CATEGORIES.has(sec.id) ? (
               <div className="mn__list">
                 {sec.entries.map((e, i) => {
@@ -379,6 +409,8 @@ export default function Menu() {
       ) : null}
 
       {detail ? <DishDetail entry={detail} onClose={() => setDetail(null)} /> : null}
+
+      {rakiPrep ? <RakiDetail prep={rakiPrep} onClose={() => setRakiPrep(null)} /> : null}
     </div>
   );
 }

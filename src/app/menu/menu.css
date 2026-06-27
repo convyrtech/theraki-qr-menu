@@ -254,6 +254,7 @@
 
 .mn__preps { margin-top: 28px; display: grid; gap: 24px; }
 .mn__prep-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 13px; }
+.mn__prep-head--detail { margin-top: 24px; }
 .mn__prep-title { font-family: "Fraunces", "Cormorant Garamond", serif; font-size: 21px; color: #101c1e; }
 .mn__prep-label { font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #a9803f; }
 .mn__recipes { display: flex; flex-wrap: wrap; gap: 8px; }
