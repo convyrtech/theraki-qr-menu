@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { chapters, rakiChapter, formatNumber, type MenuEntry } from "@/data/menu";
 import "./menu.css";
 import "../wheel/wheel.css"; // переиспользуем готовое боковое колесо (.cat*) с анимациями
@@ -125,11 +125,93 @@ function RakiBlock() {
   );
 }
 
+/* ---------- ИНТРО: экран приветствия «The Raki» → растворение Роршахом ----------
+   Зелёный (наш hero-градиент) дают только маскируемый svg-rect + кляксы, которые
+   растут из разных точек и прорезают зелёный → проступает кремовое меню под оверлеем.
+   Играет при КАЖДОМ открытии (без sessionStorage), тап/скролл — пропустить. */
+const BLOB_A = "M0,-9 C5,-10 11,-5 10,1 C9,7 4,11 -1,10 C-8,9 -11,2 -9,-3 C-8,-8 -4,-9 0,-9 Z";
+const BLOB_B = "M0,-8 C6,-9 10,-3 8,3 C7,9 0,11 -4,9 C-10,7 -10,0 -8,-4 C-6,-8 -3,-8 0,-8 Z";
+const BLOB_C = "M0,-10 C4,-11 7,-8 8,-3 C12,-2 12,4 7,6 C5,11 -2,12 -5,8 C-11,7 -11,-1 -8,-4 C-7,-9 -4,-9 0,-10 Z";
+
+const INK_BLOTS: { d: string; x: number; y: number; r: number; delay: number; dur: number; sc: number }[] = [
+  { d: BLOB_C, x: 50, y: 54, r: 0, delay: 1100, dur: 900, sc: 4.6 },
+  { d: BLOB_A, x: 31, y: 62, r: 30, delay: 1180, dur: 850, sc: 4.2 },
+  { d: BLOB_A, x: 69, y: 62, r: -30, delay: 1240, dur: 850, sc: 4.2 },
+  { d: BLOB_B, x: 50, y: 86, r: 10, delay: 1220, dur: 900, sc: 4.4 },
+  { d: BLOB_B, x: 28, y: 82, r: 45, delay: 1340, dur: 850, sc: 4.0 },
+  { d: BLOB_B, x: 72, y: 82, r: -45, delay: 1380, dur: 850, sc: 4.0 },
+  { d: BLOB_C, x: 14, y: 50, r: 70, delay: 1460, dur: 800, sc: 3.8 },
+  { d: BLOB_C, x: 86, y: 50, r: -70, delay: 1520, dur: 800, sc: 3.8 },
+  { d: BLOB_A, x: 27, y: 30, r: 120, delay: 1560, dur: 800, sc: 3.8 },
+  { d: BLOB_A, x: 73, y: 30, r: -120, delay: 1500, dur: 800, sc: 3.8 },
+  { d: BLOB_B, x: 50, y: 20, r: 0, delay: 1700, dur: 760, sc: 3.6 },
+  { d: BLOB_C, x: 16, y: 76, r: 200, delay: 1640, dur: 780, sc: 3.6 },
+  { d: BLOB_C, x: 84, y: 76, r: 160, delay: 1680, dur: 780, sc: 3.6 },
+  { d: BLOB_A, x: 50, y: 38, r: 90, delay: 1840, dur: 720, sc: 3.4 },
+  { d: BLOB_B, x: 38, y: 14, r: 250, delay: 1960, dur: 700, sc: 3.2 },
+  { d: BLOB_B, x: 62, y: 14, r: 280, delay: 2010, dur: 700, sc: 3.2 },
+];
+
+function MenuIntro({ onDone }: { onDone: () => void }) {
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => { setDone(true); onDone(); };
+    if (reduce) { finish(); return; }
+    const t = window.setTimeout(finish, 3000); // совпадает с завершением растворения
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const skip = () => { setDone(true); onDone(); };
+
+  if (done) return null;
+
+  return (
+    <div className="mn-intro" role="presentation" onPointerDown={skip} onWheel={skip} onTouchStart={skip}>
+      <svg className="mn-intro__ink" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden>
+        <defs>
+          <radialGradient id="mn-intro-green" cx="50%" cy="6%" r="120%">
+            <stop offset="0%" stopColor="#11454c" />
+            <stop offset="52%" stopColor="#0b3237" />
+            <stop offset="100%" stopColor="#07262a" />
+          </radialGradient>
+          <mask id="mn-intro-mask">
+            <rect x="-20" y="-20" width="140" height="140" fill="#fff" />
+            <g fill="#000">
+              {INK_BLOTS.map((b, i) => (
+                <g key={i} transform={`translate(${b.x} ${b.y}) rotate(${b.r})`}>
+                  <path
+                    className="mn-intro__blot"
+                    d={b.d}
+                    style={{ animationDelay: `${b.delay}ms`, animationDuration: `${b.dur}ms`, "--bs": b.sc } as CSSProperties}
+                  />
+                </g>
+              ))}
+            </g>
+          </mask>
+        </defs>
+        <rect x="-20" y="-20" width="140" height="140" fill="url(#mn-intro-green)" mask="url(#mn-intro-mask)" />
+      </svg>
+      <div className="mn-intro__glow" aria-hidden />
+      <div className="mn-intro__grain" aria-hidden />
+      <div className="mn-intro__brand">
+        <span className="mn-intro__eyebrow">Раковарня · Москва</span>
+        <span className="mn-intro__word">The <em>Raki</em></span>
+        <span className="mn-intro__sub">Карта раковарни</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Menu() {
   const [active, setActive] = useState("raki");
   const [open, setOpen] = useState(false); // оверлей-колесо категорий
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
-  const [past, setPast] = useState(false); // прокрутили за hero → показать FAB
+  const [past, setPast] = useState(false); // прокрутили вниз → показать FAB
+  const [introDone, setIntroDone] = useState(false); // интро растворилось
+  const handleIntroDone = useCallback(() => setIntroDone(true), []);
 
   // scroll-spy: подсветка текущей категории в masthead/кнопке (без гонки — просто active)
   useEffect(() => {
@@ -161,11 +243,11 @@ export default function Menu() {
     return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, []);
 
-  // блокируем фоновый скролл, пока открыт оверлей или карточка блюда
+  // блокируем фоновый скролл: пока идёт интро, открыт оверлей или карточка блюда
   useEffect(() => {
-    document.body.style.overflow = open || detail ? "hidden" : "";
+    document.body.style.overflow = open || detail || !introDone ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [open, detail]);
+  }, [open, detail, introDone]);
 
   const pick = (id: string) => {
     setOpen(false);
@@ -177,28 +259,7 @@ export default function Menu() {
 
   return (
     <div className="mn">
-      <section className="mn__hero" aria-label="The Raki — раковарня">
-        <div className="mn__hero-grain" aria-hidden />
-        <div className="mn__hero-glow" aria-hidden />
-        <div className="mn__hero-inner">
-          <span className="mn__hero-eyebrow">Раковарня · Москва</span>
-          <h1 className="mn__hero-brand">The <em>Raki</em></h1>
-          <span className="mn__hero-sub">Карта раковарни</span>
-          <div className="mn__hero-thread" aria-hidden />
-        </div>
-        <div className="mn__hero-hint" aria-hidden>
-          <span>меню</span>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v13M6 12l6 6 6-6" /></svg>
-        </div>
-        <svg className="mn__hero-wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden>
-          <path fill="#f2e8d5" d="M0,42 C240,82 480,12 720,42 C960,72 1200,16 1440,46 L1440,90 L0,90 Z">
-            <animate attributeName="d" dur="8s" repeatCount="indefinite"
-              values="M0,42 C240,82 480,12 720,42 C960,72 1200,16 1440,46 L1440,90 L0,90 Z;
-                      M0,48 C240,14 480,78 720,40 C960,10 1200,72 1440,38 L1440,90 L0,90 Z;
-                      M0,42 C240,82 480,12 720,42 C960,72 1200,16 1440,46 L1440,90 L0,90 Z" />
-          </path>
-        </svg>
-      </section>
+      <MenuIntro onDone={handleIntroDone} />
 
       <main>
         {SECTIONS.map((sec) => (
@@ -240,7 +301,7 @@ export default function Menu() {
       </main>
 
       {/* кнопка категорий — приподнята над кромкой Safari */}
-      <button className={"mn__catbtn" + (past ? " is-shown" : "")} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
+      <button className={"mn__catbtn" + (past || introDone ? " is-shown" : "")} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" aria-hidden>
           <rect x="3.5" y="3.5" width="7.4" height="7.4" rx="1.6" />
           <rect x="13.1" y="3.5" width="7.4" height="7.4" rx="1.6" />
