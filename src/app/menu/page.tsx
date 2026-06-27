@@ -209,7 +209,6 @@ export default function Menu() {
   const [active, setActive] = useState("raki");
   const [open, setOpen] = useState(false); // оверлей-колесо категорий
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
-  const [past, setPast] = useState(false); // прокрутили вниз → показать FAB
   const [introDone, setIntroDone] = useState(false); // интро растворилось
   const handleIntroDone = useCallback(() => setIntroDone(true), []);
 
@@ -232,17 +231,6 @@ export default function Menu() {
     return () => obs.disconnect();
   }, []);
 
-  // FAB-кнопка категорий прячется над hero, выезжает после прокрутки в меню
-  useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; setPast(window.scrollY > window.innerHeight * 0.62); });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, []);
-
   // блокируем фоновый скролл: пока идёт интро, открыт оверлей или карточка блюда
   useEffect(() => {
     document.body.style.overflow = open || detail || !introDone ? "hidden" : "";
@@ -260,6 +248,14 @@ export default function Menu() {
   return (
     <div className="mn">
       <MenuIntro onDone={handleIntroDone} />
+
+      <header className={"mn__top" + (introDone ? " is-shown" : "")}>
+        <span className="mn__brand">The <em>Raki</em></span>
+        <button className="mn__top-menu" type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
+          <span className="mn__burger" aria-hidden><span /><span /><span /></span>
+          <span>Меню</span>
+        </button>
+      </header>
 
       <main>
         {SECTIONS.map((sec) => (
@@ -299,18 +295,6 @@ export default function Menu() {
           </section>
         ))}
       </main>
-
-      {/* кнопка категорий — приподнята над кромкой Safari */}
-      <button className={"mn__catbtn" + (past || introDone ? " is-shown" : "")} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <rect x="3.5" y="3.5" width="7.4" height="7.4" rx="1.6" />
-          <rect x="13.1" y="3.5" width="7.4" height="7.4" rx="1.6" />
-          <rect x="3.5" y="13.1" width="7.4" height="7.4" rx="1.6" />
-          <rect x="13.1" y="13.1" width="7.4" height="7.4" rx="1.6" />
-        </svg>
-        <span className="mn__catbtn-label">{LABEL[active] ?? "Категории"}</span>
-        <span className="mn__catbtn-hint">меню</span>
-      </button>
 
       {open ? (
         <CategoryWheel active={active} onPick={pick} onClose={() => setOpen(false)} />
