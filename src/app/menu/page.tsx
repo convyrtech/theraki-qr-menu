@@ -251,10 +251,6 @@ export default function Menu() {
 
       <header className={"mn__top" + (introDone ? " is-shown" : "")}>
         <span className="mn__brand">The <em>Raki</em></span>
-        <button className="mn__top-menu" type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
-          <span className="mn__burger" aria-hidden><span /><span /><span /></span>
-          <span>Меню</span>
-        </button>
       </header>
 
       <main>
@@ -295,6 +291,18 @@ export default function Menu() {
           </section>
         ))}
       </main>
+
+      {/* нижняя пилюля «Меню» — палец далеко от кромки Safari (вход в колесо) */}
+      <button className={"mn__catbtn" + (introDone ? " is-shown" : "")} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <rect x="3.5" y="3.5" width="7.4" height="7.4" rx="1.6" />
+          <rect x="13.1" y="3.5" width="7.4" height="7.4" rx="1.6" />
+          <rect x="3.5" y="13.1" width="7.4" height="7.4" rx="1.6" />
+          <rect x="13.1" y="13.1" width="7.4" height="7.4" rx="1.6" />
+        </svg>
+        <span className="mn__catbtn-label">{LABEL[active] ?? "Категории"}</span>
+        <span className="mn__catbtn-hint">меню</span>
+      </button>
 
       {open ? (
         <CategoryWheel active={active} onPick={pick} onClose={() => setOpen(false)} />
