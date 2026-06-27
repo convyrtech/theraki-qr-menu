@@ -149,6 +149,44 @@
 }
 .mn__sig { color: #be9667; margin-left: 5px; }
 
+/* карточка-заглушка для еды без фото (кремовая, эмблема-волна — читается как задумка) */
+.mn__card-ph {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3;
+  background: linear-gradient(180deg, #efe6d2 0%, #e8ddc5 100%);
+  color: #be9667;
+}
+.mn__card-ph svg { width: 48px; height: 48px; stroke: currentColor; fill: none; stroke-width: 1.2; opacity: 0.5; }
+
+/* текст-список (напитки/пиво/чай/соусы/гарниры) — компактно, без фото */
+.mn__list { display: grid; margin-top: 6px; }
+.mn__row {
+  display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 3px 14px;
+  padding: 13px 0; border-bottom: 1px solid rgba(16,28,30,0.07);
+}
+.mn__row:last-child { border-bottom: 0; }
+.mn__row-name {
+  grid-column: 1; font-family: "Cormorant Garamond", serif; font-size: 19px;
+  line-height: 1.22; color: #101c1e;
+}
+.mn__row-price {
+  grid-column: 2; justify-self: end; white-space: nowrap;
+  font-family: "Cormorant Garamond", serif; font-size: 19px; color: #101c1e;
+}
+.mn__row-unit {
+  font-family: var(--font-mono, monospace); font-style: normal;
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(45,36,28,0.5); margin-left: 7px;
+}
+.mn__row-note {
+  grid-column: 1 / -1; margin-top: 2px; font-size: 13px; line-height: 1.45;
+  color: rgba(45,36,28,0.62); max-width: 46ch;
+}
+.mn__row-variants {
+  grid-column: 1 / -1; margin-top: 4px;
+  font-family: var(--font-mono, monospace); font-size: 11px;
+  color: rgba(45,36,28,0.55);
+}
+
 /* мини-заголовок под-группы в длинной главе (Воды/Газировки/Соки) — ритм вместо простыни */
 .mn__group {
   margin: 28px 0 2px;

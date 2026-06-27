@@ -11,7 +11,7 @@ const RAKI_SECTION = {
   title: "Раки",
   lede: undefined as string | undefined,
   origin: undefined as string | undefined,
-  entries: rakiChapter.sizes.map((s) => ({
+  entries: rakiChapter.sizes.map((s): MenuEntry => ({
     name: `Раки · ${s.tier}`,
     price: s.price,
     unit: "кг",
@@ -23,6 +23,9 @@ const RAKI_SECTION = {
 };
 
 const SECTIONS = [RAKI_SECTION, ...chapters];
+
+// Категории-списки (без фото): напитки/пиво/чай/соусы/гарниры — компактный текст, не карточки.
+const LIST_CATEGORIES = new Set(["soft", "beer", "tea", "sauces", "garnish"]);
 
 const LABEL: Record<string, string> = {
   raki: "Раки", crab: "Краб", shrimp: "Креветки", starters: "Закуски",
@@ -262,6 +265,33 @@ export default function Menu() {
             <div className="mn__rule" />
             {sec.id === "raki" ? (
               <RakiBlock />
+            ) : LIST_CATEGORIES.has(sec.id) ? (
+              <div className="mn__list">
+                {sec.entries.map((e, i) => {
+                  const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
+                  return (
+                    <Fragment key={e.name}>
+                      {showGroup ? <div className="mn__group">{e.group}</div> : null}
+                      <div className="mn__row">
+                        <span className="mn__row-name">
+                          {e.name}
+                          {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
+                        </span>
+                        <span className="mn__row-price">
+                          {formatNumber(e.price) + " ₽"}
+                          {e.unit ? <i className="mn__row-unit">{e.unit}</i> : null}
+                        </span>
+                        {e.note ? <span className="mn__row-note">{e.note}</span> : null}
+                        {e.variants?.length ? (
+                          <span className="mn__row-variants">
+                            {e.variants.map((v) => v.label + " — " + formatNumber(v.price) + " ₽").join("  ·  ")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </Fragment>
+                  );
+                })}
+              </div>
             ) : (
               <div className="mn__cards">
                 {sec.entries.map((e, i) => {
@@ -278,7 +308,9 @@ export default function Menu() {
                     {photo ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img className="mn__card-photo" src={photo} alt={e.name} loading="lazy" />
-                    ) : null}
+                    ) : (
+                      <div className="mn__card-ph" aria-hidden>{CAT_ICON}</div>
+                    )}
                     <div className="mn__card-body">
                       <h3 className="mn__card-name">
                         {e.name}
