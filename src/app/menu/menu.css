@@ -107,33 +107,46 @@
 }
 .mn__rule { height: 1px; background: rgba(16,28,30,0.1); margin: 18px 0 4px; }
 
-.mn__dish {
-  display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 12px;
-  width: 100%; text-align: left;
-  background: none; border: 0;
-  padding: 22px 0; border-bottom: 1px solid rgba(16,28,30,0.07);
-  cursor: pointer;
+/* карточки блюд — калька с menu-editorial__section-card сайта, мобайл-фёрст:
+   фото сверху 4:3 cover (полное, белый фон), под ним имя/цена/мета/описание */
+.mn__cards { display: grid; gap: 16px; margin-top: 6px; }
+.mn__card {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  background: linear-gradient(180deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.3) 100%);
+  border: 1px solid rgba(31,24,17,0.08); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 22px 54px rgba(50,41,29,0.05);
+  transition: transform 320ms cubic-bezier(0.22,1,0.36,1), box-shadow 320ms cubic-bezier(0.22,1,0.36,1);
 }
-.mn__dish:last-child { border-bottom: 0; }
-.mn__dish-photo {
-  grid-row: 1 / span 3; width: 116px; height: 116px; object-fit: contain;
-  filter: drop-shadow(0 11px 13px rgba(60,40,20,0.2)); margin-right: 6px;
+.mn__card:active { transform: translateY(-3px); box-shadow: 0 28px 64px rgba(50,41,29,0.09); }
+.mn__card-photo {
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  transition: transform 420ms cubic-bezier(0.22,1,0.36,1);
 }
-.mn__dish.has-photo { grid-template-columns: 116px 1fr auto; }
-.mn__dish-name {
-  font-family: "Fraunces", "Cormorant Garamond", serif;
-  font-size: 22px; line-height: 1.18; color: #101c1e;
+.mn__card:active .mn__card-photo { transform: scale(1.03); }
+.mn__card-body {
+  display: grid; grid-template-columns: 1fr auto; align-items: baseline;
+  gap: 4px 14px; padding: 15px 16px 17px;
 }
-.mn__dish-price {
-  font-family: var(--font-mono, monospace);
-  font-weight: 500; font-size: 17px; color: #101c1e; white-space: nowrap;
+.mn__card-name {
+  grid-column: 1; margin: 0;
+  font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
+  font-size: 23px; line-height: 1.1; letter-spacing: -0.01em; color: #101c1e;
+}
+.mn__card-price {
+  grid-column: 2; grid-row: 1; justify-self: end;
+  font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
+  font-size: 21px; line-height: 1.15; color: #101c1e; white-space: nowrap;
+}
+.mn__card-meta {
+  grid-column: 1 / -1; margin-top: 3px;
+  font-family: var(--font-mono, monospace); font-size: 11px;
+  letter-spacing: 0.16em; text-transform: uppercase; color: rgba(45,36,28,0.54);
   font-variant-numeric: tabular-nums;
 }
-.mn__dish-desc {
-  grid-column: 1 / -1; font-size: 14.5px; line-height: 1.62;
-  color: rgba(58,50,42,0.56); margin-top: 12px; max-width: 42ch;
+.mn__card-note {
+  grid-column: 1 / -1; margin: 8px 0 0;
+  font-size: 14.5px; line-height: 1.56; color: rgba(45,36,28,0.72);
 }
-.mn__dish.has-photo .mn__dish-desc { grid-column: 2 / -1; }
 .mn__sig { color: #be9667; margin-left: 5px; }
 
 /* мини-заголовок под-группы в длинной главе (Воды/Газировки/Соки) — ритм вместо простыни */
@@ -242,8 +255,8 @@
   display: grid; place-content: center; cursor: pointer;
 }
 .mn__detail-photo {
-  display: block; width: 76%; max-width: 330px; height: auto; margin: 6px auto 20px;
-  filter: drop-shadow(0 20px 28px rgba(60,40,20,0.32));
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: 16px; margin: 2px 0 20px;
 }
 .mn__detail-name {
   font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;

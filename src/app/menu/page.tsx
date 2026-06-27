@@ -65,16 +65,17 @@ const TomatoIcon: ReactNode = (
   </svg>
 );
 
+// Полные фото с БЕЛЫМ студийным фоном (НЕ cutout) — ложатся под object-fit:cover карточек.
 const DISH_PHOTO: Record<string, string> = {
-  "Микс на льду: магаданская и медведка 70/90": "/images/cutout/shrimp-mix.webp",
-  "Медведка на льду 70/90": "/images/cutout/shrimp-medvedka.webp",
-  "Мидии в соусе": "/images/cutout/mussels-tomyam.webp",
-  "Вонголе в соусе": "/images/cutout/vongole-arrabiata.webp",
-  "Фиш-энд-краб": "/images/cutout/hot-fishcrab.webp",
-  "Гурмэ хот-дог с крабом и авокадо": "/images/cutout/hot-hotdog.webp",
-  "Хрустящие бородинские гренки с донским укропом": "/images/cutout/hot-grenki.webp",
-  "Золотистый бейби-картофель с балтийской килькой": "/images/cutout/starter-potato.webp",
-  "Португальский суп с раковыми шейками": "/images/cutout/soup-port.webp",
+  "Микс на льду: магаданская и медведка 70/90": "/images/shrimp-mix.webp",
+  "Медведка на льду 70/90": "/images/shrimp-medvedka.webp",
+  "Мидии в соусе": "/images/mussels-tomyam.webp",
+  "Вонголе в соусе": "/images/vongole-arrabiata.webp",
+  "Фиш-энд-краб": "/images/hot-fishcrab.webp",
+  "Гурмэ хот-дог с крабом и авокадо": "/images/hot-hotdog.webp",
+  "Хрустящие бородинские гренки с донским укропом": "/images/hot-grenki.webp",
+  "Золотистый бейби-картофель с балтийской килькой": "/images/starter-potato.webp",
+  "Португальский суп с раковыми шейками": "/images/soup-port.webp",
 };
 
 /* ---------- РАКИ: доска размеров + рецепты (отварные/жареные), read-only ---------- */
@@ -262,31 +263,36 @@ export default function Menu() {
             {sec.id === "raki" ? (
               <RakiBlock />
             ) : (
-              sec.entries.map((e, i) => {
+              <div className="mn__cards">
+                {sec.entries.map((e, i) => {
                 const photo = DISH_PHOTO[e.name];
                 const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
                 return (
                   <Fragment key={e.name}>
                   {showGroup ? <div className="mn__group">{e.group}</div> : null}
                   <button
-                    className={"mn__dish" + (photo ? " has-photo" : "")}
+                    className={"mn__card" + (photo ? " has-photo" : "")}
                     type="button"
                     onClick={() => setDetail(e)}
                   >
                     {photo ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img className="mn__dish-photo" src={photo} alt={e.name} loading="lazy" />
+                      <img className="mn__card-photo" src={photo} alt={e.name} loading="lazy" />
                     ) : null}
-                    <span className="mn__dish-name">
-                      {e.name}
-                      {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
-                    </span>
-                    <span className="mn__dish-price">{formatNumber(e.price) + " ₽"}</span>
-                    {e.note ? <span className="mn__dish-desc">{e.note}</span> : null}
+                    <div className="mn__card-body">
+                      <h3 className="mn__card-name">
+                        {e.name}
+                        {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
+                      </h3>
+                    <span className="mn__card-price">{formatNumber(e.price) + " ₽"}</span>
+                      {e.unit ? <span className="mn__card-meta">{e.unit}</span> : null}
+                      {e.note ? <p className="mn__card-note">{e.note}</p> : null}
+                    </div>
                   </button>
                   </Fragment>
                 );
-              })
+                })}
+              </div>
             )}
           </section>
         ))}
