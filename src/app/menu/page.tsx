@@ -241,6 +241,37 @@ export default function Menu() {
     return () => { document.body.style.overflow = ""; };
   }, [open, detail, introDone]);
 
+  // §3A: плавное появление карточек/строк/заголовков при входе во вьюпорт (как на сайте).
+  // Scroll-sweep (надёжнее IntersectionObserver, который пропускает при быстром скролле):
+  // на кадр скролла проявляем всё, что пересекло линию экрана — ничего не залипнет скрытым.
+  // Прогрессивно: класс .reveal-on вешается только при активном JS, без него контент виден.
+  useEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    document.querySelector(".mn")?.classList.add("reveal-on");
+    let els = Array.from(document.querySelectorAll<HTMLElement>(".mn__card, .mn__row, .mn__ch"));
+    let raf = 0;
+    const sweep = () => {
+      raf = 0;
+      const line = window.innerHeight * 0.92;
+      els = els.filter((el) => {
+        if (el.getBoundingClientRect().top < line) { el.classList.add("is-in"); return false; }
+        return true;
+      });
+      if (!els.length) stop();
+    };
+    const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(sweep); };
+    const stop = () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+    sweep();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return stop;
+  }, []);
+
   const pick = (id: string) => {
     setOpen(false);
     setActive(id);
@@ -303,6 +334,7 @@ export default function Menu() {
                   <button
                     className={"mn__card" + (photo ? " has-photo" : "")}
                     type="button"
+                    style={{ animationDelay: `${Math.min(i, 4) * 55}ms` }}
                     onClick={() => setDetail(e)}
                   >
                     {photo ? (
