@@ -22,16 +22,34 @@ const RAKI_SECTION = {
   })),
 };
 
-const SECTIONS = [RAKI_SECTION, ...chapters];
+// «Напитки» — UI-слияние soft+tea+beer в одну категорию с под-группами.
+// Контент дока НЕ трогаем: берём те же entries, пиву проставляем группу «Пиво».
+const DRINK_IDS = ["soft", "tea", "beer"];
+const DRINKS_SECTION = {
+  id: "drinks",
+  title: "Напитки",
+  lede: undefined as string | undefined,
+  origin: undefined as string | undefined,
+  entries: DRINK_IDS.flatMap((id): MenuEntry[] => {
+    const ch = chapters.find((c) => c.id === id);
+    if (!ch) return [];
+    return ch.entries.map((e): MenuEntry => ({ ...e, group: e.group ?? (id === "beer" ? "Пиво" : ch.title) }));
+  }),
+};
+const SECTIONS = [
+  RAKI_SECTION,
+  ...chapters.filter((c) => !DRINK_IDS.includes(c.id)),
+  DRINKS_SECTION,
+];
 
-// Категории-списки (без фото): напитки/пиво/чай/соусы/гарниры — компактный текст, не карточки.
-const LIST_CATEGORIES = new Set(["soft", "beer", "tea", "sauces", "garnish"]);
+// Категории-списки (без фото): напитки/соусы/гарниры — компактный текст, не карточки.
+const LIST_CATEGORIES = new Set(["drinks", "sauces", "garnish"]);
 
 const LABEL: Record<string, string> = {
   raki: "Раки", crab: "Краб", shrimp: "Креветки", starters: "Закуски",
   salads: "Салаты", hot: "Горячее", soups: "Супы", mussels: "Мидии",
   vongole: "Вонголе", mains: "Основные", garnish: "Гарниры", sauces: "Соусы",
-  desserts: "Десерты", tea: "Чай", soft: "Воды", beer: "Пиво",
+  desserts: "Десерты", drinks: "Напитки",
 };
 
 const CAT_FACE: Record<string, string> = {
@@ -244,6 +262,7 @@ export default function Menu() {
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
   const [rakiPrep, setRakiPrep] = useState<RakiPreparation | null>(null); // деталь раков (способ)
   const [introDone, setIntroDone] = useState(false); // интро растворилось
+  const [subGroup, setSubGroup] = useState<string | null>(null); // под-группа «Напитков» для липкого под-бара
   const handleIntroDone = useCallback(() => setIntroDone(true), []);
 
   // scroll-spy: подсветка текущей категории в masthead/кнопке (без гонки — просто active)
@@ -302,6 +321,33 @@ export default function Menu() {
     return stop;
   }, []);
 
+  // Липкий под-бар «Напитков»: пока секция «Напитки» у верха — показываем текущую
+  // под-группу (Воды/Соки/Пиво…), отслеживая, какой под-заголовок пересёк линию панели.
+  useEffect(() => {
+    const sec = document.getElementById("mn-drinks");
+    if (!sec) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const line = 72; // чуть ниже верхней панели — переключение когда под-заголовок подходит к ней
+      const r = sec.getBoundingClientRect();
+      if (r.top > line || r.bottom < line) { setSubGroup(null); return; }
+      const groups = Array.from(sec.querySelectorAll<HTMLElement>(".mn__group"));
+      let cur = groups[0]?.textContent ?? null;
+      for (const g of groups) { if (g.getBoundingClientRect().top <= line) cur = g.textContent; }
+      setSubGroup(cur);
+    };
+    const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(update); };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   const pick = (id: string) => {
     setOpen(false);
     setActive(id);
@@ -316,6 +362,11 @@ export default function Menu() {
 
       <header className={"mn__top" + (introDone ? " is-shown" : "")}>
         <span className="mn__brand">The <em>Raki</em></span>
+        {subGroup ? (
+          <span className="mn__top-sub" aria-live="polite">
+            Напитки <span className="mn__top-sub-grp">· {subGroup}</span>
+          </span>
+        ) : null}
       </header>
 
       <main>
