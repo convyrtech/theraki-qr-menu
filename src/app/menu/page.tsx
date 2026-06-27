@@ -42,8 +42,13 @@ const CAT_FACE: Record<string, string> = {
   mains: "/images/cutout/mains.webp",
 };
 
+// эмблема-плейсхолдер для категорий без фото — волна (морской мотив, как hero),
+// читается как задумка, а не «недогруженное фото». Заменяется на фото по номерам владельца.
 const CAT_ICON: ReactNode = (
-  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M12 4v16M5 9c4 3 10 3 14 0" /></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3.5 14.2c2-2.5 3.8-2.5 5.6 0s3.6 2.5 5.6 0 3.8-2.5 5.2-0.8" />
+    <path d="M5 9.6c1.7-2.1 3.1-2.1 4.6 0s2.9 2.1 4.6 0 3.1-2.1 4.3-0.7" />
+  </svg>
 );
 
 // маркеры из дока: чили — острота, помидор — рецепт «Дон с помидором». Отрисованы вручную, выверены по пикселям.
