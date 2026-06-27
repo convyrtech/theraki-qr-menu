@@ -33,7 +33,8 @@ const DRINKS_SECTION = {
   entries: DRINK_IDS.flatMap((id): MenuEntry[] => {
     const ch = chapters.find((c) => c.id === id);
     if (!ch) return [];
-    return ch.entries.map((e): MenuEntry => ({ ...e, group: e.group ?? (id === "beer" ? "Пиво" : ch.title) }));
+    // group уже есть у soft/tea (Воды/Газировки/Соки/Чай/Кофе); у пива нет — проставляем «Пиво»
+    return ch.entries.map((e): MenuEntry => ({ ...e, group: e.group ?? "Пиво" }));
   }),
 };
 const SECTIONS = [
@@ -329,11 +330,13 @@ export default function Menu() {
     let raf = 0;
     const update = () => {
       raf = 0;
-      const line = 72; // чуть ниже верхней панели — переключение когда под-заголовок подходит к ней
+      // линия = нижняя кромка панели (учитывает safe-area/чёлку), а не хардкод
+      const bar = document.querySelector<HTMLElement>(".mn__top");
+      const line = (bar?.getBoundingClientRect().bottom ?? 48) + 24;
       const r = sec.getBoundingClientRect();
       if (r.top > line || r.bottom < line) { setSubGroup(null); return; }
       const groups = Array.from(sec.querySelectorAll<HTMLElement>(".mn__group"));
-      let cur = groups[0]?.textContent ?? null;
+      let cur: string | null = null; // пока ни один под-заголовок не дошёл до панели — под-бар скрыт
       for (const g of groups) { if (g.getBoundingClientRect().top <= line) cur = g.textContent; }
       setSubGroup(cur);
     };
@@ -363,9 +366,7 @@ export default function Menu() {
       <header className={"mn__top" + (introDone ? " is-shown" : "")}>
         <span className="mn__brand">The <em>Raki</em></span>
         {subGroup ? (
-          <span className="mn__top-sub" aria-live="polite">
-            Напитки <span className="mn__top-sub-grp">· {subGroup}</span>
-          </span>
+          <span className="mn__top-sub" aria-live="polite">{subGroup}</span>
         ) : null}
       </header>
 

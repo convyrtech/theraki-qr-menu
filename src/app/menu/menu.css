@@ -96,11 +96,10 @@
 /* липкий индикатор под-группы «Напитков» — справа в верхней панели */
 .mn__top-sub {
   font-family: var(--font-golos, sans-serif);
-  font-size: 12px; letter-spacing: 0.04em; white-space: nowrap;
-  color: rgba(16,28,30,0.5);
+  font-size: 12.5px; letter-spacing: 0.04em; font-weight: 600; color: #be9667;
+  max-width: 48vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   animation: mn-subbar-in 0.28s cubic-bezier(0.22,1,0.36,1) both;
 }
-.mn__top-sub-grp { color: #be9667; font-weight: 600; }
 @keyframes mn-subbar-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 
 /* -------- секции + блюда -------- */
@@ -532,5 +531,5 @@
 .cat--overlay .cat__d-eyebrow { margin-bottom: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mn__top, .mn__brand, .mn__sheet, .cat--overlay { transition: none; animation: none; }
+  .mn__top, .mn__brand, .mn__top-sub, .mn__sheet, .cat--overlay { transition: none; animation: none; }
 }
