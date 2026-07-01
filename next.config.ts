@@ -6,6 +6,9 @@ import type { NextConfig } from "next";
 // optimizer is not needed.
 const nextConfig: NextConfig = {
   output: "export",
+  // Статик-хостинг (GitHub Pages): menu/index.html вместо menu.html —
+  // чистые URL со слэшем работают на любом файловом сервере
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },
