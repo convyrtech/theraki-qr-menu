@@ -1,26 +1,19 @@
 {
   "target": "http://localhost:3010/menu",
   "viewports": ["390x844"],
-  "date": "2026-06-26",
+  "date": "2026-07-01",
   "checks": [
-    {
-      "id": "G1-overflow",
-      "viewport": "390x844",
-      "status": "PASS",
-      "measured": { "pageHScroll": false },
-      "note": "Страница без горизонтального скролла. 2 'нарушителя' — .mn__hero / .mn__hero-glow (свечение 441px) внутри hero с overflow:hidden → клипаются, визуального overflow нет."
-    },
-    { "id": "G2-render", "viewport": "390x844", "status": "PASS", "note": "Контент рендерится (hero + меню видимы)." },
-    { "id": "G3-console", "viewport": "390x844", "status": "PASS", "measured": { "errors": 0, "warnings": 0, "info": 1 }, "note": "Единственное сообщение — INFO про React DevTools." },
-    {
-      "id": "G4-contrast",
-      "viewport": "390x844",
-      "status": "INCOMPLETE",
-      "contrastIncomplete": true,
-      "note": "Текст hero (cream #f2e8d5) на тёмном marine-градиенте — авто-инструмент не мерит контраст на градиенте. Фактически светлый на тёмном = высокий контраст. Маршрут к человеку."
-    }
+    { "id": "G1-overflow", "viewport": "390x844", "status": "PASS", "measured": "scrollWidth 375 <= 390; no page h-scroll (ambient off-edge clipped by fixed overflow:hidden layer)" },
+    { "id": "G2-render", "viewport": "390x844", "status": "PASS", "measured": "visible content across all sections" },
+    { "id": "G3-console", "viewport": "390x844", "status": "PASS", "measured": "0 errors, 0 warnings" },
+    { "id": "G4-contrast", "viewport": "390x844", "status": "PASS", "measured": "after fix: card-meta 6.57, row-unit 6.53, row-variants 6.53, lede 6.99, note 5.73; headings/names/prices 16:1", "contrastIncomplete": false }
   ],
-  "judge_flags": "pending (async subagent — арт-директор Awwwards-судья, оценка по 6 скриншотам hero/transition/wheel x2/textsection/detail)",
+  "judge_flags": [
+    { "lens": "hierarchy", "severity": "critical->mitigated", "note": "crab placeholder repeated; mitigated to faint watermark + text anchor; REAL crab photos still ideal (owner)" },
+    { "lens": "slop-craft", "severity": "medium", "note": "drink brand logos read mass-market; owner decision keep/monochrome/remove" },
+    { "lens": "slop-craft", "severity": "medium", "note": "mussels dark photo tonal outlier vs light set; owner reshoot" },
+    { "lens": "slop-craft", "severity": "low", "note": "intro ornament density; optional taste" }
+  ],
   "verdict": "DONE_WITH_CONCERNS",
-  "verdict_reason": "Детерминированные G1-G3 зелёные; G4 контраст hero на градиенте = incomplete → пометка человеку (фактически высокий контраст). Мягкий судья (совещательно) в работе для приоритизации полировки до Awwwards."
+  "verdict_reason": "All deterministic gates G1-G4 PASS after contrast fixes. Remaining items are owner/taste decisions (crab real photos, drink logos, dark mussel photo) routed to human."
 }

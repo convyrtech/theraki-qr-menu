@@ -11,3 +11,12 @@ gptwhite.png
 orig.jpg
 montage.png
 **/cutout-compare/
+*.jpg
+*.jpeg
+out/
+menu-pustoy5.html
+scripts/
+node_modules/
+.next/
+artifacts/
+*.png
