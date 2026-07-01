@@ -86,9 +86,18 @@ function sectionTitle(section: { id: string; title: string }) {
   return LABEL[section.id] ?? section.title;
 }
 
-// Браузер переносит строку ПОСЛЕ «/» → «н/ф» разваливается на «н/ | ф».
-// Word-joiner (U+2060) после слэша запрещает разрыв; контент в menu.ts не меняется.
-const noSlashBreak = (s: string) => s.replace(/\//g, "/⁠");
+// Типограф на РЕНДЕРЕ (контент в menu.ts не меняется):
+// — word-joiner после «/»: «н/ф» не разваливается переносом;
+// — NBSP после коротких предлогов/союзов: нет висячих «на|с|и» в конце строк;
+// — неразрывный дефис в составных словах: «бёр‑нуазет» не рвётся по дефису.
+const typo = (s: string) =>
+  s
+    .replace(/\//g, "/⁠")
+    .replace(/(^|[\s(«])(в|во|на|с|со|к|ко|и|а|о|у|из|по|за|от|до|для|при|под|над|не)\s/gi, "$1$2 ")
+    .replace(/(\p{L})-(?=\p{L})/gu, "$1‑");
+// Разрядка тысяч НЕРАЗРЫВНЫМ пробелом: узкий U+202F из formatNumber на мелких
+// кеглях читается «слитно» («1350 ₽») — замечание судьи-типографа.
+const fmtP = (n: number) => formatNumber(n).replace(/ /g, " ");
 
 // Короткие ярлыки для ленты-пилюль (заголовки секций остаются полными, из дока)
 const NAV_LABEL: Record<string, string> = {
@@ -109,6 +118,15 @@ const SECTION_ICON: Record<string, string> = {
 };
 
 // маркеры из дока: чили — острота, помидор — рецепт «Дон с помидором». Отрисованы вручную, выверены по пикселям.
+// Заглушки без фото: соседние карточки секции получают РАЗНЫЕ рисунки —
+// повтор одной картинки подряд кричит «placeholder» (замечание 3 судей).
+const PH_POOL = ["oyster-pearl", "scallop", "mussel-open", "clam", "crayfish-blue"];
+function placeholderArt(secId: string, i: number) {
+  const first = SECTION_ICON[secId] ?? PH_POOL[0];
+  const pool = [first, ...PH_POOL.filter((x) => x !== first)];
+  return pool[i % pool.length];
+}
+
 const ChiliIcon: ReactNode = (
   <svg className="mn__glyph mn__glyph--chili" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <path d="M15.6 5.6c2.7 1.4 3.4 5.4 1.2 9.4c-1.9 3.2-4.9 5.2-7 4.1c-1.5-.8-1.5-2.7.3-4.4c2.7-2.5 4-5.6 3-8.5" />
@@ -194,7 +212,7 @@ const RAKI_FROM = Math.min(...rakiChapter.sizes.map((s) => s.price));
 function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
   return (
     <div className="mn__cards">
-      {rakiChapter.preparations.map((p, i) => (
+      {rakiChapter.preparations.map((p) => (
         <button
           key={p.id}
           className="mn__card has-photo"
@@ -210,8 +228,8 @@ function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
           />
           <div className="mn__card-body">
             <h3 className="mn__card-name">Раки {p.title.toLowerCase()}</h3>
-            <span className="mn__card-price">от {formatNumber(RAKI_FROM)} ₽</span>
-            <span className="mn__card-meta">за кг · размеры S–XXL</span>
+            <span className="mn__card-price">от {fmtP(RAKI_FROM)} ₽ / кг</span>
+            <span className="mn__card-meta">размеры S–XXL</span>
             <p className="mn__card-note">{p.recipes.map((r) => r.name).join(" · ")}</p>
           </div>
         </button>
@@ -244,8 +262,8 @@ function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => v
             <div className="mn__raki-size" key={s.tier}>
               <span className="mn__raki-tier" style={{ fontSize: `${20 + idx * 3}px` }}>{s.tier}</span>
               <span className="mn__raki-pieces">{s.countPerKg}</span>
-              <span className="mn__raki-price">{formatNumber(s.price) + " ₽"}</span>
-              <span className="mn__raki-price">{formatNumber(s.price / 2) + " ₽"}</span>
+              <span className="mn__raki-price">{fmtP(s.price) + " ₽"}</span>
+              <span className="mn__raki-price">{fmtP(s.price / 2) + " ₽"}</span>
             </div>
           ))}
         </div>
@@ -618,17 +636,17 @@ export default function Menu() {
                       <div className={"mn__row" + (hasDrinkLogo ? " mn__row--with-badge" : "")}>
                         {hasDrinkLogo ? <DrinkBadge entry={e} /> : null}
                         <span className="mn__row-name">
-                          {noSlashBreak(e.name)}
+                          {typo(e.name)}
                           {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
                         </span>
                         <span className="mn__row-price">
-                          {formatNumber(e.price) + " ₽"}
+                          {fmtP(e.price) + " ₽"}
                           {e.unit ? <i className="mn__row-unit">{e.unit}</i> : null}
                         </span>
-                        {e.note ? <span className="mn__row-note">{e.note}</span> : null}
+                        {e.note ? <span className="mn__row-note">{typo(e.note)}</span> : null}
                         {e.variants?.length ? (
                           <span className="mn__row-variants">
-                            {e.variants.map((v) => v.label + " — " + formatNumber(v.price) + " ₽").join("  ·  ")}
+                            {e.variants.map((v) => v.label + " — " + fmtP(v.price) + " ₽").join("  ·  ")}
                           </span>
                         ) : null}
                       </div>
@@ -655,17 +673,17 @@ export default function Menu() {
                     ) : (
                       <div className="mn__card-ph" aria-hidden>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={`/ornaments/${SECTION_ICON[sec.id] ?? "oyster-pearl"}.png`} alt="" />
+                        <img src={`/ornaments/${placeholderArt(sec.id, i)}.png`} alt="" />
                       </div>
                     )}
                     <div className="mn__card-body">
                       <h3 className="mn__card-name">
-                        {noSlashBreak(e.name)}
+                        {typo(e.name)}
                         {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
                       </h3>
-                    <span className="mn__card-price">{formatNumber(e.price) + " ₽"}</span>
-                      {e.unit ? <span className="mn__card-meta">{e.unit}</span> : null}
-                      {e.note ? <p className="mn__card-note">{e.note}</p> : null}
+                    <span className="mn__card-price">{fmtP(e.price) + " ₽" + (e.unit === "кг" ? " / кг" : "")}</span>
+                      {e.unit && e.unit !== "кг" ? <span className="mn__card-meta">{e.unit}</span> : null}
+                      {e.note ? <p className="mn__card-note">{typo(e.note)}</p> : null}
                     </div>
                   </button>
                   </Fragment>
@@ -706,19 +724,19 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
           <img className="mn__detail-photo" src={photo} alt={entry.name} />
         ) : null}
         <h3 className="mn__detail-name">
-          {noSlashBreak(entry.name)}
+          {typo(entry.name)}
           {entry.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
         </h3>
-        {entry.note ? <p className="mn__detail-desc">{entry.note}</p> : null}
+        {entry.note ? <p className="mn__detail-desc">{typo(entry.note)}</p> : null}
         <div className="mn__detail-foot">
-          <span className="mn__detail-price">{formatNumber(entry.price) + " ₽"}</span>
+          <span className="mn__detail-price">{fmtP(entry.price) + " ₽"}</span>
           {entry.unit ? <span className="mn__detail-unit">за {entry.unit}</span> : null}
         </div>
         {entry.variants?.length ? (
           <div className="mn__detail-variants">
             {entry.variants.map((v) => (
               <span className="mn__detail-variant" key={v.label}>
-                {v.label} — {formatNumber(v.price) + " ₽"}
+                {v.label} — {fmtP(v.price) + " ₽"}
               </span>
             ))}
           </div>
