@@ -322,25 +322,9 @@ const INTRO_ORNAMENTS: { src: string; x: number; y: number; w: number; r: number
   { src: "dill-coral", x: 50, y: 95, w: 150, r: 4, d: 870, fx: 0, fy: 150 },
 ];
 
-// Амбиентные каракули: ДВА ПЛАНА ГЛУБИНЫ для объёма (просьба владельца).
-// far — дальний план: крупнее, бледнее (0.10), еле дрейфует — атмосфера;
-// near — ближний: ярче (0.30), заметнее и быстрее в параллаксе.
-// Разница скоростей при скролле и создаёт стереоглубину.
-const MENU_ORNAMENTS: { src: string; side: "left" | "right"; top: number; w: number; r: number; speed: number; layer: "far" | "near" }[] = [
-  { src: "shrimp", side: "right", top: 3, w: 150, r: 8, speed: 0.085, layer: "near" },
-  { src: "dill-coral", side: "left", top: 9, w: 250, r: -10, speed: -0.02, layer: "far" },
-  { src: "oyster-pearl", side: "right", top: 16, w: 128, r: 12, speed: 0.09, layer: "near" },
-  { src: "scallop", side: "left", top: 23, w: 140, r: -8, speed: -0.08, layer: "near" },
-  { src: "mussel-blue", side: "right", top: 31, w: 230, r: 14, speed: 0.018, layer: "far" },
-  { src: "clam", side: "left", top: 39, w: 132, r: -12, speed: -0.075, layer: "near" },
-  { src: "dill-flower", side: "right", top: 47, w: 240, r: 6, speed: 0.02, layer: "far" },
-  { src: "crayfish-blue", side: "left", top: 55, w: 150, r: 10, speed: -0.085, layer: "near" },
-  { src: "oyster-pearl", side: "right", top: 63, w: 124, r: -14, speed: 0.09, layer: "near" },
-  { src: "mussel-open", side: "left", top: 71, w: 245, r: 8, speed: -0.018, layer: "far" },
-  { src: "scallop", side: "right", top: 79, w: 134, r: -10, speed: 0.08, layer: "near" },
-  { src: "dill-coral", side: "left", top: 87, w: 150, r: 12, speed: -0.075, layer: "near" },
-  { src: "crab", side: "right", top: 94, w: 235, r: -8, speed: 0.02, layer: "far" },
-];
+// Фон меню: БЕСШОВНЫЙ плотный паттерн из каракулей (pattern-tile.png, собран
+// программно из 11 вырезок с wrap-around швом) — как фирменная обклейка машин.
+// Контент живёт на белых фарфоровых панелях поверх — логика той же обклейки.
 
 // Один элемент-клякса для маски: растёт из своей точки; в режиме line дополнительно
 // гаснет (вторая анимация), едва фронт прошёл — статичных линий не остаётся.
@@ -466,7 +450,6 @@ export default function Menu() {
   const [introDone, setIntroDone] = useState(false); // интро растворилось
   const [subGroup, setSubGroup] = useState<string | null>(null); // под-группа «Напитков» для липкого под-бара
   const [active, setActive] = useState("crab"); // текущая секция для ленты-пилюль
-  const ambientRef = useRef<HTMLDivElement | null>(null); // слой амбиентных иллюстраций (параллакс)
   const tabsRef = useRef<HTMLElement | null>(null); // лента-пилюли (автоцентрируем активную)
   const handleIntroDone = useCallback(() => setIntroDone(true), []);
 
@@ -503,29 +486,6 @@ export default function Menu() {
     document.getElementById(`mn-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
-  // Параллакс амбиентного слоя: каждый орнамент дрейфует translateY = scrollY * speed.
-  useEffect(() => {
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
-    const layer = ambientRef.current;
-    if (!layer) return;
-    const items = Array.from(layer.querySelectorAll<HTMLElement>(".mn__amb"));
-    let raf = 0;
-    const apply = () => {
-      raf = 0;
-      const vpMid = window.scrollY + window.innerHeight / 2;
-      for (const el of items) {
-        const sp = parseFloat(el.dataset.speed || "0");
-        const center = el.offsetTop + el.offsetHeight / 2; // позиция орнамента на ленте
-        const drift = (vpMid - center) * sp;               // дрейф относительно центра экрана (ограничен)
-        el.style.transform = `translate3d(0, ${drift.toFixed(1)}px, 0) rotate(var(--r))`;
-      }
-    };
-    const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(apply); };
-    apply();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
-  }, []);
 
   // блокируем фоновый скролл: пока идёт интро или открыта карточка блюда/деталь раков
   useEffect(() => {
@@ -606,21 +566,9 @@ export default function Menu() {
     <div className={"mn" + (introDone ? " mn--introdone" : "")}>
       <MenuIntro onDone={handleIntroDone} />
 
-      {/* Амбиентный слой иллюстраций (ironhill-стиль): по краям, приглушённо,
-          с лёгким параллакс-дрейфом при скролле — за контентом, не перекрывает. */}
-      <div className="mn__ambient" aria-hidden ref={ambientRef}>
-        {MENU_ORNAMENTS.map((o, i) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={i}
-            src={`/ornaments/${o.src}.png`}
-            alt=""
-            className={"mn__amb mn__amb--" + o.side + " mn__amb--" + o.layer}
-            data-speed={o.speed}
-            style={{ "--top": o.top, "--w": `${o.w}px`, "--r": `${o.r}deg` } as CSSProperties}
-          />
-        ))}
-      </div>
+      {/* Фон-паттерн из каракулей: плотный бесшовный тайл во всю ленту (как обклейка),
+          контент — на белых фарфоровых панелях поверх. */}
+      <div className="mn__ambient" aria-hidden />
 
       <header className={"mn__top" + (introDone ? " is-shown" : "")}>
         <div className="mn__top-row">

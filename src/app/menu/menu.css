@@ -27,32 +27,15 @@ body:has(.mn) { background: #ffffff; }
   z-index: 1;
 }
 
-/* -------- амбиентный слой иллюстраций (ironhill-стиль) --------
-   Прозрачные PNG художницы фиксированы по краям экрана, частично за кромкой,
-   приглушены; JS даёт лёгкий параллакс-дрейф (translateY = scrollY * speed).
-   За контентом (z-index 0), еда и цены всегда сверху. */
+/* -------- фон-паттерн из каракулей (как фирменная обклейка) --------
+   Бесшовный тайл pattern-tile.png (крупные элементы ~120-165px, НЕ мелко —
+   правка Натальи по машине) во всю ленту; контент — на белых панелях поверх. */
 .mn__ambient {
   position: absolute; inset: 0; z-index: 0;
-  pointer-events: none; overflow: hidden;
+  pointer-events: none;
+  background: url("/ornaments/pattern-tile.png") top center / 780px auto repeat;
+  opacity: 0.20;
 }
-.mn__amb {
-  position: absolute; top: calc(var(--top) * 1%);
-  width: var(--w); height: auto;
-  transform: rotate(var(--r));
-  will-change: transform;
-}
-/* два плана глубины: дальний — крупный, бледный, еле дрейфует; ближний — ярче и быстрее */
-.mn__amb--far { opacity: 0.10; }
-.mn__amb--near { opacity: 0.30; }
-.mn__amb--left { left: 0; margin-left: -34px; }
-.mn__amb--right { right: 0; margin-right: -38px; }
-.mn__amb--far.mn__amb--left { margin-left: -90px; }
-.mn__amb--far.mn__amb--right { margin-right: -95px; }
-@media (min-width: 520px) {
-  .mn__amb--left { margin-left: -14px; }
-  .mn__amb--right { margin-right: -18px; }
-}
-@media (prefers-reduced-motion: reduce) { .mn__amb--near { opacity: 0.22; } }
 
 /* -------- Интро: белый «лист» → прожиг пятнами Роршаха, тонкая кобальтовая линия
    по фронту, меню наводится на резкость из-под листа. -------- */
@@ -247,7 +230,7 @@ body:has(.mn) { background: #ffffff; }
 .mn__cards { display: grid; gap: 16px; margin-top: 6px; }
 .mn__card {
   display: block; width: 100%; text-align: left; cursor: pointer;
-  background: rgba(255,255,255,0.86);
+  background: #ffffff;
   border: 1px solid rgba(47,102,192,0.12); border-radius: 16px; overflow: hidden;
   box-shadow: 0 22px 54px rgba(32,43,54,0.055);
   transition: transform 320ms cubic-bezier(0.22,1,0.36,1), box-shadow 320ms cubic-bezier(0.22,1,0.36,1);
@@ -299,8 +282,14 @@ body:has(.mn) { background: #ffffff; }
 .mn__card:not(.has-photo) .mn__card-name { font-size: 24px; }
 .mn__card:not(.has-photo) .mn__card-price { font-size: 22px; }
 
-/* текст-список (напитки/пиво/чай/соусы/гарниры) — компактно, без фото */
-.mn__list { display: grid; margin-top: 6px; }
+/* текст-список (напитки/соусы) — белая фарфоровая панель поверх паттерна */
+.mn__list {
+  display: grid; margin-top: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(47,102,192,0.10); border-radius: 16px;
+  padding: 4px 16px;
+  box-shadow: 0 22px 54px rgba(32,43,54,0.05);
+}
 .mn__row {
   display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 3px 14px;
   padding: 13px 0; border-bottom: 1px solid rgba(47,102,192,0.08);
