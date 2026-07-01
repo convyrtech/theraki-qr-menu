@@ -239,7 +239,7 @@ function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => v
           </div>
           {rakiChapter.sizes.map((s, idx) => (
             <div className="mn__raki-size" key={s.tier}>
-              <span className="mn__raki-tier" style={{ fontSize: `${22 + idx * 5}px` }}>{s.tier}</span>
+              <span className="mn__raki-tier" style={{ fontSize: `${20 + idx * 3}px` }}>{s.tier}</span>
               <span className="mn__raki-pieces">{s.countPerKg}</span>
               <span className="mn__raki-price">{formatNumber(s.price) + " ₽"}</span>
               <span className="mn__raki-price">{formatNumber(s.price / 2) + " ₽"}</span>
