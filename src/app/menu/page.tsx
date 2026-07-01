@@ -86,6 +86,10 @@ function sectionTitle(section: { id: string; title: string }) {
   return LABEL[section.id] ?? section.title;
 }
 
+// Браузер переносит строку ПОСЛЕ «/» → «н/ф» разваливается на «н/ | ф».
+// Word-joiner (U+2060) после слэша запрещает разрыв; контент в menu.ts не меняется.
+const noSlashBreak = (s: string) => s.replace(/\//g, "/⁠");
+
 // Короткие ярлыки для ленты-пилюль (заголовки секций остаются полными, из дока)
 const NAV_LABEL: Record<string, string> = {
   crab: "Краб", raki: "Раки", starters: "Закуски", shrimp: "Креветки",
@@ -318,23 +322,24 @@ const INTRO_ORNAMENTS: { src: string; x: number; y: number; w: number; r: number
   { src: "dill-coral", x: 50, y: 95, w: 150, r: 4, d: 870, fx: 0, fy: 150 },
 ];
 
-// Амбиентные иллюстрации меню: рассыпаны по краям ВСЕЙ страницы в разнобой (как хотела
-// художница — «паттерн по всему меню»), приглушены, дрейфуют при скролле (параллакс
-// относительно центра вьюпорта). top — % высоты всей ленты; side — край; speed — множитель.
-const MENU_ORNAMENTS: { src: string; side: "left" | "right"; top: number; w: number; r: number; speed: number }[] = [
-  { src: "shrimp", side: "right", top: 3, w: 150, r: 8, speed: 0.05 },
-  { src: "dill-coral", side: "left", top: 9, w: 152, r: -10, speed: -0.04 },
-  { src: "oyster-pearl", side: "right", top: 16, w: 128, r: 12, speed: 0.06 },
-  { src: "scallop", side: "left", top: 23, w: 140, r: -8, speed: -0.05 },
-  { src: "mussel-blue", side: "right", top: 31, w: 138, r: 14, speed: 0.045 },
-  { src: "clam", side: "left", top: 39, w: 132, r: -12, speed: -0.04 },
-  { src: "dill-flower", side: "right", top: 47, w: 142, r: 6, speed: 0.05 },
-  { src: "crayfish-blue", side: "left", top: 55, w: 150, r: 10, speed: -0.045 },
-  { src: "oyster-pearl", side: "right", top: 63, w: 124, r: -14, speed: 0.06 },
-  { src: "mussel-open", side: "left", top: 71, w: 150, r: 8, speed: -0.035 },
-  { src: "scallop", side: "right", top: 79, w: 134, r: -10, speed: 0.05 },
-  { src: "dill-coral", side: "left", top: 87, w: 150, r: 12, speed: -0.04 },
-  { src: "crab", side: "right", top: 94, w: 150, r: -8, speed: 0.05 },
+// Амбиентные каракули: ДВА ПЛАНА ГЛУБИНЫ для объёма (просьба владельца).
+// far — дальний план: крупнее, бледнее (0.10), еле дрейфует — атмосфера;
+// near — ближний: ярче (0.30), заметнее и быстрее в параллаксе.
+// Разница скоростей при скролле и создаёт стереоглубину.
+const MENU_ORNAMENTS: { src: string; side: "left" | "right"; top: number; w: number; r: number; speed: number; layer: "far" | "near" }[] = [
+  { src: "shrimp", side: "right", top: 3, w: 150, r: 8, speed: 0.085, layer: "near" },
+  { src: "dill-coral", side: "left", top: 9, w: 250, r: -10, speed: -0.02, layer: "far" },
+  { src: "oyster-pearl", side: "right", top: 16, w: 128, r: 12, speed: 0.09, layer: "near" },
+  { src: "scallop", side: "left", top: 23, w: 140, r: -8, speed: -0.08, layer: "near" },
+  { src: "mussel-blue", side: "right", top: 31, w: 230, r: 14, speed: 0.018, layer: "far" },
+  { src: "clam", side: "left", top: 39, w: 132, r: -12, speed: -0.075, layer: "near" },
+  { src: "dill-flower", side: "right", top: 47, w: 240, r: 6, speed: 0.02, layer: "far" },
+  { src: "crayfish-blue", side: "left", top: 55, w: 150, r: 10, speed: -0.085, layer: "near" },
+  { src: "oyster-pearl", side: "right", top: 63, w: 124, r: -14, speed: 0.09, layer: "near" },
+  { src: "mussel-open", side: "left", top: 71, w: 245, r: 8, speed: -0.018, layer: "far" },
+  { src: "scallop", side: "right", top: 79, w: 134, r: -10, speed: 0.08, layer: "near" },
+  { src: "dill-coral", side: "left", top: 87, w: 150, r: 12, speed: -0.075, layer: "near" },
+  { src: "crab", side: "right", top: 94, w: 235, r: -8, speed: 0.02, layer: "far" },
 ];
 
 // Один элемент-клякса для маски: растёт из своей точки; в режиме line дополнительно
@@ -377,7 +382,12 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const skip = () => { setDone(true); onDone(); };
+  const skip = () => {
+    // Глотаем click, порождённый скип-тапом: иначе после unmount интро он
+    // проваливается в меню и случайно открывает карточку блюда (ghost-click).
+    window.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); }, { capture: true, once: true });
+    setDone(true); onDone();
+  };
 
   if (done) return null;
 
@@ -529,17 +539,26 @@ export default function Menu() {
   // Прогрессивно: класс .reveal-on вешается только при активном JS, без него контент виден.
   useEffect(() => {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
+    if (reduce || !introDone) return; // стартуем ПОСЛЕ интро — иначе первый экран
+    // «отыгрывает» появление невидимым под вуалью и встречает гостя статикой
     document.querySelector(".mn")?.classList.add("reveal-on");
     let els = Array.from(document.querySelectorAll<HTMLElement>(".mn__card, .mn__row, .mn__ch"));
     let raf = 0;
+    let firstPass = true;
     const sweep = () => {
       raf = 0;
       const line = window.innerHeight * 0.92;
+      let idx = 0;
       els = els.filter((el) => {
-        if (el.getBoundingClientRect().top < line) { el.classList.add("is-in"); return false; }
+        if (el.getBoundingClientRect().top < line) {
+          // первый экран входит каскадом (сверху вниз), дальше — как обычно по скроллу
+          if (firstPass) el.style.animationDelay = `${Math.min(idx++, 8) * 70}ms`;
+          el.classList.add("is-in");
+          return false;
+        }
         return true;
       });
+      firstPass = false;
       if (!els.length) stop();
     };
     const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(sweep); };
@@ -552,7 +571,7 @@ export default function Menu() {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return stop;
-  }, []);
+  }, [introDone]);
 
   // Липкий под-бар «Напитков»: пока секция «Напитки» у верха — показываем текущую
   // под-группу (Воды/Соки/Пиво…), отслеживая, какой под-заголовок пересёк линию панели.
@@ -596,7 +615,7 @@ export default function Menu() {
             key={i}
             src={`/ornaments/${o.src}.png`}
             alt=""
-            className={"mn__amb mn__amb--" + o.side}
+            className={"mn__amb mn__amb--" + o.side + " mn__amb--" + o.layer}
             data-speed={o.speed}
             style={{ "--top": o.top, "--w": `${o.w}px`, "--r": `${o.r}deg` } as CSSProperties}
           />
@@ -649,7 +668,7 @@ export default function Menu() {
                       <div className={"mn__row" + (hasDrinkLogo ? " mn__row--with-badge" : "")}>
                         {hasDrinkLogo ? <DrinkBadge entry={e} /> : null}
                         <span className="mn__row-name">
-                          {e.name}
+                          {noSlashBreak(e.name)}
                           {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
                         </span>
                         <span className="mn__row-price">
@@ -692,7 +711,7 @@ export default function Menu() {
                     )}
                     <div className="mn__card-body">
                       <h3 className="mn__card-name">
-                        {e.name}
+                        {noSlashBreak(e.name)}
                         {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
                       </h3>
                     <span className="mn__card-price">{formatNumber(e.price) + " ₽"}</span>
@@ -707,6 +726,13 @@ export default function Menu() {
             )}
           </section>
         ))}
+
+        {/* тихий колофон — лента не обрывается «в никуда» */}
+        <footer className="mn__colophon">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/ornaments/logo-black.png" alt="The Raki" />
+          <span>Цены в рублях</span>
+        </footer>
       </main>
 
       {detail ? <DishDetail entry={detail} onClose={() => setDetail(null)} /> : null}
@@ -731,7 +757,7 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
           <img className="mn__detail-photo" src={photo} alt={entry.name} />
         ) : null}
         <h3 className="mn__detail-name">
-          {entry.name}
+          {noSlashBreak(entry.name)}
           {entry.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
         </h3>
         {entry.note ? <p className="mn__detail-desc">{entry.note}</p> : null}
