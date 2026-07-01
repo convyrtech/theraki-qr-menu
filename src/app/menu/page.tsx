@@ -199,7 +199,6 @@ function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
           key={p.id}
           className="mn__card has-photo"
           type="button"
-          style={{ animationDelay: `${i * 55}ms` }}
           onClick={() => onOpen(p)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -512,7 +511,10 @@ export default function Menu() {
       els = els.filter((el) => {
         if (el.getBoundingClientRect().top < line) {
           // первый экран входит каскадом (сверху вниз), дальше — как обычно по скроллу
-          if (firstPass) el.style.animationDelay = `${Math.min(idx++, 8) * 70}ms`;
+          // каскад для строк/заголовков; карточкам delay не даём (transition-delay
+          // замылил бы пресс-отклик), их fade стартует сразу
+          if (firstPass && !el.classList.contains("mn__card"))
+            el.style.transitionDelay = `${Math.min(idx++, 8) * 70}ms`;
           el.classList.add("is-in");
           return false;
         }
@@ -645,7 +647,6 @@ export default function Menu() {
                   <button
                     className={"mn__card" + (photo ? " has-photo" : "")}
                     type="button"
-                    style={{ animationDelay: `${Math.min(i, 4) * 55}ms` }}
                     onClick={() => setDetail(e)}
                   >
                     {photo ? (

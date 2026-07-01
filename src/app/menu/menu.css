@@ -233,7 +233,7 @@ body:has(.mn) { background: #ffffff; }
   background: #ffffff;
   border: 1px solid rgba(47,102,192,0.12); border-radius: 16px; overflow: hidden;
   box-shadow: 0 22px 54px rgba(32,43,54,0.055);
-  transition: transform 320ms cubic-bezier(0.22,1,0.36,1), box-shadow 320ms cubic-bezier(0.22,1,0.36,1);
+  transition: transform 320ms cubic-bezier(0.22,1,0.36,1), box-shadow 320ms cubic-bezier(0.22,1,0.36,1), opacity 0.6s cubic-bezier(0.22,1,0.36,1);
 }
 .mn__card:active { box-shadow: 0 28px 64px rgba(32,43,54,0.1); }
 .mn__card-photo {
@@ -394,17 +394,20 @@ body:has(.mn) { background: #ffffff; }
   padding: 6px;
 }
 
-/* §3A: появление при скролле (IntersectionObserver добавляет .is-in).
-   Скрыто только при активном JS (.reveal-on) — без JS контент виден. */
-.mn.reveal-on .mn__card,
+/* §3A: появление при скролле — на TRANSITION, не на animation:
+   финальное состояние живёт в классе .is-in (opacity 1), поэтому даже если
+   таймлайн анимаций заморожен (фоновая вкладка/свёрнутый телефон), контент
+   ГАРАНТИРОВАННО виден — теряется только плавность. Без JS контент виден. */
+.mn.reveal-on .mn__card { opacity: 0; }
+.mn.reveal-on .mn__row { opacity: 0; transform: translateY(16px); }
+.mn.reveal-on .mn__ch { opacity: 0; transform: translateY(24px); }
 .mn.reveal-on .mn__row,
-.mn.reveal-on .mn__ch { opacity: 0; }
-.mn.reveal-on .mn__card.is-in { animation: mn-reveal-card 0.6s cubic-bezier(0.22,1,0.36,1) both; }
-.mn.reveal-on .mn__row.is-in { animation: mn-reveal-row 0.55s cubic-bezier(0.22,1,0.36,1) both; }
-.mn.reveal-on .mn__ch.is-in { animation: mn-reveal-sec 0.72s cubic-bezier(0.22,1,0.36,1) both; }
-@keyframes mn-reveal-card { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes mn-reveal-row { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-@keyframes mn-reveal-sec { from { opacity: 0; transform: translateY(36px); } to { opacity: 1; transform: none; } }
+.mn.reveal-on .mn__ch {
+  transition: opacity 0.55s cubic-bezier(0.22,1,0.36,1), transform 0.55s cubic-bezier(0.22,1,0.36,1);
+}
+.mn.reveal-on .mn__card.is-in { opacity: 1; }
+.mn.reveal-on .mn__row.is-in { opacity: 1; transform: none; }
+.mn.reveal-on .mn__ch.is-in { opacity: 1; transform: none; }
 
 /* мини-заголовок под-группы в длинной главе (Воды/Газировки/Соки) — ритм вместо простыни */
 .mn__group {
@@ -485,7 +488,7 @@ body:has(.mn) { background: #ffffff; }
 .mn__colophon img { width: 118px; height: auto; opacity: 0.85; }
 .mn__colophon span {
   font-family: var(--font-mono, monospace); font-size: 10px;
-  letter-spacing: 0.24em; text-transform: uppercase; color: rgba(19,32,42,0.55);
+  letter-spacing: 0.24em; text-transform: uppercase; color: rgba(19,32,42,0.78);
 }
 
 .mn__footnote {
