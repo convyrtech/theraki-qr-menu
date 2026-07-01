@@ -427,7 +427,7 @@
 .mn__raki-board { margin-top: 6px; }
 /* шапка-колонки — «цена за кг» один раз вместо повтора в каждой строке */
 .mn__raki-head {
-  display: grid; grid-template-columns: 54px minmax(56px, 1fr) auto auto; gap: 10px;
+  display: grid; grid-template-columns: minmax(44px, max-content) minmax(56px, 1fr) auto auto; gap: 10px;
   padding-bottom: 8px; margin-bottom: 2px;
   border-bottom: 1px solid rgba(47,102,192,0.14);
   font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: #2f66c0;
@@ -436,7 +436,7 @@
 .mn__raki-head span:last-child { text-align: right; }
 /* лесенка: буквы растут S→XXL (инлайн), колонки выровнены по сетке + базовой линии */
 .mn__raki-size {
-  display: grid; grid-template-columns: 54px minmax(56px, 1fr) auto auto; gap: 10px;
+  display: grid; grid-template-columns: minmax(44px, max-content) minmax(56px, 1fr) auto auto; gap: 10px;
   align-items: baseline;
   padding: 11px 0; border-bottom: 1px solid rgba(47,102,192,0.08);
 }
@@ -495,9 +495,7 @@
 }
 .mn__detail-card {
   position: relative; z-index: 1; width: 100%;
-  background:
-    url("/ornaments/dill-coral.png") right -64px bottom -70px / 200px auto no-repeat,
-    #ffffff;
+  background: #ffffff;
   border-radius: 28px 28px 0 0;
   padding: 30px 24px calc(30px + env(safe-area-inset-bottom));
   box-shadow: 0 -18px 44px rgba(11,25,46,0.22);
