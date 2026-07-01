@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "The Raki — меню",
   description:
     "Раки, камчатский краб, дикие креветки и икра. Меню раковарни The Raki.",
-  robots: { index: false, follow: false },
+  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {

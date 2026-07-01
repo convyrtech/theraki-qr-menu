@@ -440,7 +440,7 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={i}
-              src={`/ornaments/${o.src}.png`}
+              src={`/ornaments/${o.src}.webp`}
               alt=""
               className="mn-intro__orn"
               style={{ "--x": o.x, "--y": o.y, "--w": o.w, "--r": `${o.r}deg`, "--d": `${o.d}ms`, "--fx": `${o.fx}px`, "--fy": `${o.fy}px` } as CSSProperties}
@@ -450,7 +450,7 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
         <div className="mn-intro__brand">
           <span className="mn-intro__eyebrow">Раковарня · Москва</span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="mn-intro__logo" src="/ornaments/logo-black.png" alt="The Raki" />
+          <img className="mn-intro__logo" src="/ornaments/logo-black.webp" alt="The Raki" />
           <span className="mn-intro__sub">Карта раковарни</span>
         </div>
       </div>
@@ -618,7 +618,7 @@ export default function Menu() {
               <span className="mn__ch-text">{sectionTitle(sec)}</span>
               {SECTION_ICON[sec.id] ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="mn__ch-icon" src={`/ornaments/${SECTION_ICON[sec.id]}.png`} alt="" aria-hidden />
+                <img className="mn__ch-icon" src={`/ornaments/${SECTION_ICON[sec.id]}.webp`} alt="" aria-hidden />
               ) : null}
             </h2>
             {sec.lede ? <span className="mn__ch-lede">{sec.lede}</span> : null}
@@ -673,7 +673,7 @@ export default function Menu() {
                     ) : (
                       <div className="mn__card-ph" aria-hidden>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={`/ornaments/${placeholderArt(sec.id, i)}.png`} alt="" />
+                        <img src={`/ornaments/${placeholderArt(sec.id, i)}.webp`} alt="" />
                       </div>
                     )}
                     <div className="mn__card-body">
@@ -697,7 +697,7 @@ export default function Menu() {
         {/* тихий колофон — лента не обрывается «в никуда» */}
         <footer className="mn__colophon">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/ornaments/logo-black.png" alt="The Raki" />
+          <img src="/ornaments/logo-black.webp" alt="The Raki" />
           <span>Цены в рублях</span>
         </footer>
       </main>
