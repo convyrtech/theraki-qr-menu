@@ -1,131 +1,243 @@
 /* ============================================================
-   The Raki — QR-меню, Вариант «колесо по кнопке».
-   Список блюд + приподнятая кнопка категорий → полноэкранный
-   оверлей с вертикальным колесом по ЦЕНТРУ (палец далеко от
-   кромки Safari, крупные цели, rAF только пока оверлей открыт).
-   Cream доминирует, бирюза/золото — акценты.
+   The Raki — QR-меню.
+   Текущая карточная структура + простая шторка категорий.
+   Белая основа, рисунки владельца работают тихим фоновым паттерном.
    ============================================================ */
 
 .mn {
+  position: relative;
+  isolation: isolate;
   min-height: 100dvh;
-  background:
-    radial-gradient(120% 60% at 50% 0%, #f7f1e3 0%, #f2e8d5 50%, #efe4cd 100%);
-  color: #101c1e;
+  background: #ffffff;
+  color: #13202a;
   font-family: var(--font-golos, "Golos Text", system-ui), sans-serif;
   padding-bottom: calc(140px + env(safe-area-inset-bottom));
 }
 
-/* -------- Интро: экран приветствия «The Raki» + растворение Роршахом --------
-   Зелёный (наш hero-градиент) дают только маскируемый svg-rect + кляксы, растущие
-   из разных точек и прорезающие зелёный → проступает кремовое меню под оверлеем.
-   Играет при КАЖДОМ открытии (без sessionStorage), тап/скролл — пропустить. */
+.mn > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* -------- амбиентный слой иллюстраций (ironhill-стиль) --------
+   Прозрачные PNG художницы фиксированы по краям экрана, частично за кромкой,
+   приглушены; JS даёт лёгкий параллакс-дрейф (translateY = scrollY * speed).
+   За контентом (z-index 0), еда и цены всегда сверху. */
+.mn__ambient {
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none; overflow: hidden;
+}
+.mn__amb {
+  position: absolute; top: calc(var(--top) * 1%);
+  width: var(--w); height: auto;
+  opacity: 0.22;
+  transform: rotate(var(--r));
+  will-change: transform;
+}
+.mn__amb--left { left: 0; margin-left: -34px; }
+.mn__amb--right { right: 0; margin-right: -38px; }
+@media (min-width: 520px) {
+  .mn__amb--left { margin-left: -14px; }
+  .mn__amb--right { margin-right: -18px; }
+}
+@media (prefers-reduced-motion: reduce) { .mn__amb { opacity: 0.2; } }
+
+/* -------- Интро: белый «лист» → прожиг пятнами Роршаха, тонкая кобальтовая линия
+   по фронту, меню наводится на резкость из-под листа. -------- */
 .mn-intro {
   position: fixed; inset: 0; z-index: 100; overflow: hidden;
-  background: transparent; /* зелёное даёт только маскируемый svg-rect, иначе кляксы не «прорежут» */
 }
-.mn-intro__ink {
-  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
-  /* мягкий доклир остатков зелёного — кляксы могут быть раздельными */
-  animation: mn-ink-clear 0.55s ease 2.15s forwards;
-}
-@keyframes mn-ink-clear { to { opacity: 0; } }
-/* Каждая клякса растёт сама по себе (из своего центра), не синхронно. */
-.mn-intro__blot {
-  transform-box: fill-box; transform-origin: center; transform: scale(0);
-  animation-name: mn-blot; animation-timing-function: cubic-bezier(0.33,0.1,0.35,1);
-  animation-fill-mode: forwards;
-}
-@keyframes mn-blot { to { transform: scale(var(--bs, 6)); } }
-.mn-intro__glow {
-  position: absolute; left: 50%; top: 42%; width: 94vw; height: 58vh; z-index: 1;
-  transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: screen;
-  background: radial-gradient(closest-side, rgba(230,186,122,0.34) 0%, rgba(205,162,106,0.13) 44%, transparent 70%);
+
+/* белый лист (маскируется кляксами-дырами); лого и каракули — НА листе, сгорают с ним */
+.mn-intro__paper {
+  position: absolute; inset: 0;
+  background: #ffffff;
+  -webkit-mask: url(#mn-paper-mask); mask: url(#mn-paper-mask);
+  -webkit-mask-mode: luminance; mask-mode: luminance;
 }
 .mn-intro__grain {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.06; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 150px 150px;
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
 }
+
+/* каракули ВЛЕТАЮТ из-за экрана с тех сторон, где стоят (--fx/--fy — вектор влёта),
+   и встают на места с мягким торможением — сцена собирается вокруг лого */
+.mn-intro__scatter { position: absolute; inset: 0; pointer-events: none; }
+.mn-intro__orn {
+  position: absolute;
+  left: calc(var(--x) * 1%); top: calc(var(--y) * 1%);
+  width: calc(var(--w) * 1px); height: auto;
+  transform: translate(calc(-50% + var(--fx)), calc(-50% + var(--fy)))
+             rotate(calc(var(--r) - 16deg)) scale(0.9);
+  opacity: 0; filter: saturate(0.96);
+  animation: mn-orn-in 0.7s cubic-bezier(0.16,1,0.3,1) var(--d) forwards;
+}
+@keyframes mn-orn-in {
+  to { opacity: 0.88; transform: translate(-50%, -50%) rotate(var(--r)) scale(1); }
+}
+
+/* клякса: растёт РАДИУСОМ из своей точки; ease-in — волна, ускоряющаяся к финалу */
+.mn-intro__blot {
+  transform-box: fill-box; transform-origin: center; transform: scale(0);
+  animation-name: mn-grow;
+  animation-timing-function: cubic-bezier(0.42,0,0.75,0.4);
+  animation-fill-mode: both;
+}
+@keyframes mn-grow { to { transform: scale(1.55); } }
+/* линия живёт ТОЛЬКО на движущемся фронте: дорастает — гаснет (вторая анимация, inline) */
+.mn-intro__blot--line {
+  animation-name: mn-grow, mn-linedie;
+  animation-timing-function: cubic-bezier(0.42,0,0.75,0.4), linear;
+  animation-fill-mode: both, both;
+}
+@keyframes mn-linedie { to { opacity: 0; } }
+
+/* тонкая гжель-кобальтовая линия по фронту прожига */
+.mn-intro__edge {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle, #5b8fda 0%, #2f66c0 100%);
+  -webkit-mask: url(#mn-line-mask); mask: url(#mn-line-mask);
+  -webkit-mask-mode: luminance; mask-mode: luminance;
+  animation: mn-edge-out 3.35s linear both;
+}
+@keyframes mn-edge-out { 0%, 84% { opacity: 1; } 100% { opacity: 0; } }
+
+/* бренд-блок: лого живёт до конца и растворяется «мокрыми чернилами»
+   за миг до прихода центральной кляксы */
 .mn-intro__brand {
   position: absolute; inset: 0; z-index: 2;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; padding: 0 28px; color: #f2e8d5;
-  animation: mn-brand-out 0.5s ease 1.35s forwards;
+  text-align: center; padding: 0 28px; color: #13202a;
+  animation: mn-brand-out 0.5s cubic-bezier(0.4,0,0.8,0.4) 1.90s both;
 }
-@keyframes mn-brand-out { to { opacity: 0; } }
+@keyframes mn-brand-out {
+  to { opacity: 0; filter: blur(4px); transform: translateY(-10px) scale(0.985); }
+}
+.mn-intro__logo {
+  width: min(72vw, 300px); height: auto; margin-bottom: 14px;
+  opacity: 0; transform: translateY(10px) scale(0.98); filter: blur(4px);
+  animation: mn-ink-in 1s cubic-bezier(0.22,1,0.36,1) 0.22s forwards;
+}
+/* Надписи интро (кроме лого) — «синие с контуром» (Наталья): кобальт + тонкая
+   тёмная тень-подложка, как вывесочный леттеринг — цвет отсекается от белого чётко. */
 .mn-intro__eyebrow {
-  font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase; color: #be9667;
+  font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase; color: #2f66c0;
+  text-shadow: 0.5px 1px 0 rgba(20, 32, 44, 0.5);
   margin-bottom: 22px; opacity: 0; filter: blur(6px);
-  animation: mn-ink-in 0.8s cubic-bezier(0.22,1,0.36,1) 0.15s forwards;
+  animation: mn-ink-in 0.8s cubic-bezier(0.22,1,0.36,1) 0.12s forwards;
 }
-.mn-intro__word {
-  font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 300;
-  font-size: clamp(58px, 18vw, 86px); line-height: 0.95; letter-spacing: 0.01em;
-  opacity: 0; filter: blur(12px); transform: scale(1.05);
-  animation: mn-ink-in 1.05s cubic-bezier(0.22,1,0.36,1) 0.32s forwards;
-}
-.mn-intro__word em { font-style: italic; color: #f4ecda; }
 .mn-intro__sub {
-  margin-top: 18px;
+  margin-top: 4px;
   font-family: "Cormorant Garamond", serif; font-style: italic;
-  font-size: clamp(19px, 5.6vw, 25px); letter-spacing: 0.02em; color: rgba(242,232,213,0.66);
+  font-size: clamp(19px, 5.6vw, 25px); letter-spacing: 0.02em; color: #2f66c0;
+  text-shadow: 0.5px 1.2px 0 rgba(20, 32, 44, 0.5);
   opacity: 0; filter: blur(8px);
-  animation: mn-ink-in 1s cubic-bezier(0.22,1,0.36,1) 0.46s forwards;
+  animation: mn-ink-in 1s cubic-bezier(0.22,1,0.36,1) 0.38s forwards;
 }
 @keyframes mn-ink-in { to { opacity: 1; filter: blur(0); transform: none; } }
+
+/* Меню УЖЕ лежит под листом: не «появляется», а наводится на резкость из расфокуса.
+   На скипе интро класс mn--introdone мгновенно снимает вуаль. */
+.mn main {
+  animation: mn-focus 1.5s ease-out 1.6s both;
+}
+@keyframes mn-focus {
+  from { filter: blur(7px); opacity: 0.55; }
+  to   { filter: blur(0);   opacity: 1; }
+}
+.mn--introdone main { animation: none; filter: none; opacity: 1; }
+
 @media (prefers-reduced-motion: reduce) {
-  .mn-intro__ink, .mn-intro__blot, .mn-intro__brand,
-  .mn-intro__eyebrow, .mn-intro__word, .mn-intro__sub { animation: none; }
+  .mn-intro__orn, .mn-intro__blot, .mn-intro__brand,
+  .mn-intro__eyebrow, .mn-intro__sub, .mn-intro__logo, .mn-intro__edge { animation: none; }
+  .mn main { animation: none; filter: none; opacity: 1; }
 }
 
-/* -------- верхняя панель (как на сайте: бренд слева + «Меню» справа) -------- */
+/* -------- верхняя панель: бренд + лента-пилюли разделов (sticky единым блоком) -------- */
 .mn__top {
   position: sticky; top: 0; z-index: 20;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: calc(11px + env(safe-area-inset-top)) 20px 11px;
-  background: linear-gradient(to bottom, #f3ecdb 80%, rgba(243,236,219,0));
+  display: flex; flex-direction: column;
+  padding: calc(9px + env(safe-area-inset-top)) 0 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.94) 100%);
+  box-shadow: 0 10px 22px rgba(32,43,54,0.04);
+  backdrop-filter: blur(12px) saturate(1.02);
+  -webkit-backdrop-filter: blur(12px) saturate(1.02);
   transform: translateY(-110%); opacity: 0; pointer-events: none;
   transition: transform 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease;
+}
+.mn__top-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px 7px;
+}
+
+/* лента-пилюли: тап = прыжок к секции, активная подсвечена (scroll-spy) и автоцентрируется */
+.mn__tabs {
+  display: flex; gap: 7px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 1px 16px 10px;
+}
+.mn__tabs::-webkit-scrollbar { display: none; }
+.mn__tab {
+  flex: 0 0 auto;
+  padding: 7px 13px;
+  border: 1px solid rgba(47,102,192,0.30); border-radius: 999px;
+  background: transparent; color: #13202a;
+  font-family: var(--font-golos, sans-serif); font-size: 12.5px; line-height: 1;
+  letter-spacing: 0.02em;
+  cursor: pointer; touch-action: manipulation;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+.mn__tab.is-active {
+  background: #2f66c0; border-color: #2f66c0; color: #ffffff;
 }
 .mn__top.is-shown { transform: translateY(0); opacity: 1; pointer-events: auto; }
 .mn__brand {
   font-family: "Fraunces", "Cormorant Garamond", serif;
-  font-weight: 300; font-size: 20px; line-height: 1; color: #101c1e;
+  font-weight: 300; font-size: 20px; line-height: 1; color: #13202a;
 }
 .mn__brand em { font-style: italic; }
 /* липкий индикатор под-группы «Напитков» — справа в верхней панели */
 .mn__top-sub {
   font-family: var(--font-golos, sans-serif);
-  font-size: 12.5px; letter-spacing: 0.04em; font-weight: 600; color: #be9667;
+  font-size: 12.5px; letter-spacing: 0.04em; font-weight: 600; color: #2f66c0;
   max-width: 48vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   animation: mn-subbar-in 0.28s cubic-bezier(0.22,1,0.36,1) both;
 }
 @keyframes mn-subbar-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
 
 /* -------- секции + блюда -------- */
-.mn__section { padding: 30px 22px 8px; scroll-margin-top: 78px; }
+.mn__section { padding: 30px 22px 8px; scroll-margin-top: 108px; }
 .mn__ch {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
   font-family: "Fraunces", "Cormorant Garamond", serif;
   font-weight: 500; font-size: clamp(27px, 7.7vw, 38px);
   line-height: 1.06; margin: 0 0 4px;
 }
+.mn__ch-text { min-width: 0; }
+/* тематический значок-орнамент секции (прозрачный PNG) */
+.mn__ch-icon {
+  flex: 0 0 auto; width: 48px; height: 48px; object-fit: contain;
+  opacity: 0.95;
+}
 .mn__ch-origin {
   font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: rgba(16,28,30,0.45);
+  color: rgba(19,32,42,0.45);
 }
-.mn__rule { height: 1px; background: rgba(16,28,30,0.1); margin: 18px 0 4px; }
+.mn__rule { height: 1px; background: rgba(47,102,192,0.14); margin: 18px 0 4px; }
 
 /* карточки блюд — калька с menu-editorial__section-card сайта, мобайл-фёрст:
    фото сверху 4:3 cover (полное, белый фон), под ним имя/цена/мета/описание */
 .mn__cards { display: grid; gap: 16px; margin-top: 6px; }
 .mn__card {
   display: block; width: 100%; text-align: left; cursor: pointer;
-  background: linear-gradient(180deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.3) 100%);
-  border: 1px solid rgba(31,24,17,0.08); border-radius: 16px; overflow: hidden;
-  box-shadow: 0 22px 54px rgba(50,41,29,0.05);
+  background: rgba(255,255,255,0.86);
+  border: 1px solid rgba(47,102,192,0.12); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 22px 54px rgba(32,43,54,0.055);
   transition: transform 320ms cubic-bezier(0.22,1,0.36,1), box-shadow 320ms cubic-bezier(0.22,1,0.36,1);
 }
-.mn__card:active { box-shadow: 0 28px 64px rgba(50,41,29,0.09); }
+.mn__card:active { box-shadow: 0 28px 64px rgba(32,43,54,0.1); }
 .mn__card-photo {
   display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
   transition: transform 420ms cubic-bezier(0.22,1,0.36,1);
@@ -138,61 +250,144 @@
 .mn__card-name {
   grid-column: 1; margin: 0;
   font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
-  font-size: 23px; line-height: 1.1; letter-spacing: -0.01em; color: #101c1e;
+  font-size: 23px; line-height: 1.1; letter-spacing: -0.01em; color: #13202a;
 }
 .mn__card-price {
   grid-column: 2; grid-row: 1; justify-self: end;
   font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
-  font-size: 21px; line-height: 1.15; color: #101c1e; white-space: nowrap;
+  font-size: 21px; line-height: 1.15; color: #13202a; white-space: nowrap;
 }
 .mn__card-meta {
   grid-column: 1 / -1; margin-top: 3px;
   font-family: var(--font-mono, monospace); font-size: 11px;
-  letter-spacing: 0.16em; text-transform: uppercase; color: rgba(45,36,28,0.54);
+  letter-spacing: 0.16em; text-transform: uppercase; color: rgba(19,32,42,0.72);
   font-variant-numeric: tabular-nums;
 }
 .mn__card-note {
   grid-column: 1 / -1; margin: 8px 0 0;
-  font-size: 14.5px; line-height: 1.56; color: rgba(45,36,28,0.72);
+  font-size: 14.5px; line-height: 1.56; color: rgba(19,32,42,0.68);
 }
-.mn__sig { color: #be9667; margin-left: 5px; }
+.mn__sig { color: #e11308; margin-left: 5px; }
 
-/* карточка-заглушка для еды без фото (кремовая, эмблема-волна — читается как задумка) */
+/* карточка-заглушка для еды без фото — ТИХИЙ водяной-знак раздела (не «сломанное фото»,
+   не спорит с ценой/именем). Реальные фото заменят это по мере поступления. */
 .mn__card-ph {
-  display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3;
-  background: linear-gradient(180deg, #efe6d2 0%, #e8ddc5 100%);
-  color: #be9667;
+  display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 9;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfbf8 100%);
 }
-.mn__card-ph svg { width: 48px; height: 48px; stroke: currentColor; fill: none; stroke-width: 1.2; opacity: 0.5; }
+.mn__card-ph img {
+  width: 34%; height: auto; object-fit: contain;
+  opacity: 0.5; filter: saturate(0.42);
+}
+.mn__card-ph svg { display: none; }
+/* карточка без фото — имя/цена становятся якорем (важнее орнамента) */
+.mn__card:not(.has-photo) .mn__card-name { font-size: 24px; }
+.mn__card:not(.has-photo) .mn__card-price { font-size: 22px; }
 
 /* текст-список (напитки/пиво/чай/соусы/гарниры) — компактно, без фото */
 .mn__list { display: grid; margin-top: 6px; }
 .mn__row {
   display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 3px 14px;
-  padding: 13px 0; border-bottom: 1px solid rgba(16,28,30,0.07);
+  padding: 13px 0; border-bottom: 1px solid rgba(47,102,192,0.08);
 }
 .mn__row:last-child { border-bottom: 0; }
 .mn__row-name {
   grid-column: 1; font-family: "Cormorant Garamond", serif; font-size: 19px;
-  line-height: 1.22; color: #101c1e;
+  line-height: 1.22; color: #13202a;
 }
 .mn__row-price {
   grid-column: 2; justify-self: end; white-space: nowrap;
-  font-family: "Cormorant Garamond", serif; font-size: 19px; color: #101c1e;
+  font-family: "Cormorant Garamond", serif; font-size: 19px; color: #13202a;
 }
 .mn__row-unit {
   font-family: var(--font-mono, monospace); font-style: normal;
-  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-  color: rgba(45,36,28,0.5); margin-left: 7px;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(19,32,42,0.72); margin-left: 7px;
 }
 .mn__row-note {
   grid-column: 1 / -1; margin-top: 2px; font-size: 13px; line-height: 1.45;
-  color: rgba(45,36,28,0.62); max-width: 46ch;
+  color: rgba(19,32,42,0.62); max-width: 46ch;
 }
 .mn__row-variants {
   grid-column: 1 / -1; margin-top: 4px;
   font-family: var(--font-mono, monospace); font-size: 11px;
-  color: rgba(45,36,28,0.55);
+  color: rgba(19,32,42,0.72);
+}
+
+.mn__list--badges {
+  gap: 0;
+}
+
+.mn__row--with-badge {
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 3px 12px;
+  align-items: center;
+  min-height: 66px;
+  padding: 12px 0;
+}
+
+.mn__row--with-badge .mn__row-name {
+  grid-column: 2;
+}
+
+.mn__row--with-badge .mn__row-price {
+  grid-column: 3;
+}
+
+.mn__row--with-badge .mn__row-note,
+.mn__row--with-badge .mn__row-variants {
+  grid-column: 2 / -1;
+}
+
+.mn__drink-logo {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 46px;
+  padding: 5px;
+  border: 1px solid rgba(47, 102, 192, 0.12);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 18px rgba(32, 43, 54, 0.07);
+}
+
+.mn__drink-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mn__drink-logo--cola,
+.mn__drink-logo--cola-zero,
+.mn__drink-logo--fanta,
+.mn__drink-logo--konix,
+.mn__drink-logo--stiegl,
+.mn__drink-logo--spaten,
+.mn__drink-logo--ayinger {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.mn__drink-logo--cola,
+.mn__drink-logo--cola-zero {
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.mn__drink-logo--ayinger,
+.mn__drink-logo--spaten,
+.mn__drink-logo--stiegl {
+  padding: 4px;
+}
+
+.mn__drink-logo--sanbenedetto,
+.mn__drink-logo--borjomi,
+.mn__drink-logo--clausthaler,
+.mn__drink-logo--yoga {
+  padding: 6px;
 }
 
 /* §3A: появление при скролле (IntersectionObserver добавляет .is-in).
@@ -211,7 +406,7 @@
 .mn__group {
   margin: 28px 0 2px;
   font-family: var(--font-golos, sans-serif);
-  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #be9667;
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #2f66c0;
 }
 .mn__group:first-child { margin-top: 12px; }
 
@@ -219,98 +414,101 @@
 .mn__ch-lede {
   display: block; margin: 1px 0 0;
   font-family: "Cormorant Garamond", serif; font-style: italic;
-  font-size: 17px; line-height: 1.2; color: rgba(58,50,42,0.62);
+  font-size: 17px; line-height: 1.2; color: rgba(19,32,42,0.74);
 }
 
 /* маркеры из дока: чили (острота) / помидор — выверенные вручную глифы */
 .mn__mark { display: inline-flex; align-items: center; vertical-align: -2px; margin-left: 7px; }
 .mn__glyph { width: 14px; height: 14px; flex: 0 0 auto; }
 .mn__glyph--chili { color: #be6a4a; }
-.mn__glyph--tomato { color: #be9667; }
+.mn__glyph--tomato { color: #e11308; }
 
 /* -------- РАКИ: доска размеров + рецепты -------- */
 .mn__raki-board { margin-top: 6px; }
 /* шапка-колонки — «цена за кг» один раз вместо повтора в каждой строке */
 .mn__raki-head {
-  display: grid; grid-template-columns: 88px 1fr auto; gap: 12px;
+  display: grid; grid-template-columns: 54px minmax(56px, 1fr) auto auto; gap: 10px;
   padding-bottom: 8px; margin-bottom: 2px;
-  border-bottom: 1px solid rgba(16,28,30,0.12);
-  font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #be9667;
+  border-bottom: 1px solid rgba(47,102,192,0.14);
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: #2f66c0;
 }
+.mn__raki-head span:nth-child(3),
 .mn__raki-head span:last-child { text-align: right; }
 /* лесенка: буквы растут S→XXL (инлайн), колонки выровнены по сетке + базовой линии */
 .mn__raki-size {
-  display: grid; grid-template-columns: 88px 1fr auto; gap: 12px;
+  display: grid; grid-template-columns: 54px minmax(56px, 1fr) auto auto; gap: 10px;
   align-items: baseline;
-  padding: 11px 0; border-bottom: 1px solid rgba(16,28,30,0.07);
+  padding: 11px 0; border-bottom: 1px solid rgba(47,102,192,0.08);
 }
 .mn__raki-size:last-child { border-bottom: 0; }
 .mn__raki-tier {
   font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
-  color: #101c1e; line-height: 1; letter-spacing: -0.01em;
+  color: #13202a; line-height: 1; letter-spacing: -0.01em;
 }
 .mn__raki-pieces {
   font-family: var(--font-mono, monospace); font-size: 13px;
-  letter-spacing: 0.02em; color: rgba(58,50,42,0.62); font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em; color: rgba(19,32,42,0.62); font-variant-numeric: tabular-nums;
 }
 .mn__raki-price {
-  font-family: var(--font-mono, monospace); font-weight: 500; font-size: 17px;
-  color: #101c1e; font-variant-numeric: tabular-nums; white-space: nowrap;
+  font-family: var(--font-mono, monospace); font-weight: 500; font-size: 15px;
+  color: #13202a; font-variant-numeric: tabular-nums; white-space: nowrap;
   text-align: right;
 }
-.mn__raki-unit { color: rgba(16,28,30,0.4); font-weight: 400; }
+.mn__raki-unit { color: rgba(19,32,42,0.4); font-weight: 400; }
 
 .mn__preps { margin-top: 28px; display: grid; gap: 24px; }
 .mn__prep-head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 13px; }
 .mn__prep-head--detail { margin-top: 24px; }
-.mn__prep-title { font-family: "Fraunces", "Cormorant Garamond", serif; font-size: 21px; color: #101c1e; }
-.mn__prep-label { font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #a9803f; }
+.mn__prep-title { font-family: "Fraunces", "Cormorant Garamond", serif; font-size: 21px; color: #13202a; }
+.mn__prep-label { font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #2f66c0; }
 .mn__recipes { display: flex; flex-wrap: wrap; gap: 8px; }
 .mn__recipe {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 9px 14px;
-  border: 1px solid rgba(16,28,30,0.14); border-radius: 999px;
-  background: rgba(255,255,255,0.26);
-  font-family: var(--font-golos, sans-serif); font-size: 14.5px; color: #2a2620;
+  border: 1px solid rgba(47,102,192,0.14); border-radius: 999px;
+  background: rgba(255,255,255,0.72);
+  font-family: var(--font-golos, sans-serif); font-size: 14.5px; color: #13202a;
 }
 .mn__recipe.is-spicy { border-color: rgba(192,73,47,0.4); }
 .mn__recipe .mn__mark { margin-left: 2px; }
-.mn__recipe-extra { font-family: var(--font-mono, monospace); font-size: 11px; color: rgba(16,28,30,0.5); }
+.mn__recipe-extra { font-family: var(--font-mono, monospace); font-size: 11px; color: rgba(19,32,42,0.5); }
 
 .mn__footnote {
   margin: 20px 0 0;
   font-family: "Cormorant Garamond", serif; font-style: italic;
-  font-size: 13px; line-height: 1.4; color: rgba(58,50,42,0.6);
+  font-size: 13px; line-height: 1.4; color: rgba(19,32,42,0.6);
 }
 
 /* подсказка «увеличить» на фото-блюде */
 .mn__dish-zoom {
   grid-column: 2 / -1; justify-self: start; margin-top: 9px;
-  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #be9667;
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #2f66c0;
 }
 
 /* -------- крупная карточка блюда (bottom-sheet, тап по позиции) -------- */
 .mn__detail { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .mn__detail-bg {
   position: absolute; inset: 0; border: 0; cursor: pointer;
-  background: rgba(14,10,5,0.96);
+  background: rgba(11,25,46,0.78);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   animation: mn-sheet-in 0.3s both;
 }
 .mn__detail-card {
   position: relative; z-index: 1; width: 100%;
-  background: radial-gradient(120% 90% at 50% 0%, #f7f1e3 0%, #f2e8d5 70%, #ece0c9 100%);
+  background:
+    url("/ornaments/dill-coral.png") right -64px bottom -70px / 200px auto no-repeat,
+    #ffffff;
   border-radius: 28px 28px 0 0;
   padding: 30px 24px calc(30px + env(safe-area-inset-bottom));
-  box-shadow: 0 -18px 44px rgba(16,28,30,0.32);
+  box-shadow: 0 -18px 44px rgba(11,25,46,0.22);
   animation: mn-detail-up 0.38s cubic-bezier(0.22,1,0.36,1) both;
   max-height: 92dvh; overflow-y: auto;
 }
 @keyframes mn-detail-up { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .mn__detail-x {
   position: absolute; top: 16px; right: 16px;
-  width: 40px; height: 40px; border: 1px solid rgba(16,28,30,0.16); border-radius: 12px;
-  background: rgba(255,255,255,0.4); color: #11201f;
+  width: 40px; height: 40px; border: 1px solid rgba(47,102,192,0.16); border-radius: 12px;
+  background: rgba(255,255,255,0.78); color: #13202a;
   display: grid; place-content: center; cursor: pointer;
 }
 .mn__detail-photo {
@@ -319,52 +517,183 @@
 }
 .mn__detail-name {
   font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
-  font-size: clamp(26px, 7.4vw, 33px); line-height: 1.1; margin: 0 0 14px; color: #101c1e;
+  font-size: clamp(26px, 7.4vw, 33px); line-height: 1.1; margin: 0 0 14px; color: #13202a;
 }
-.mn__detail-desc { font-size: 16.5px; line-height: 1.6; color: rgba(58,50,42,0.82); margin: 0 0 20px; }
+.mn__detail-desc { font-size: 16.5px; line-height: 1.6; color: rgba(19,32,42,0.78); margin: 0 0 20px; }
 .mn__detail-foot { display: flex; align-items: baseline; gap: 11px; }
 .mn__detail-price {
   font-family: var(--font-mono, monospace); font-weight: 500; font-size: 23px;
-  letter-spacing: 0.01em; color: #101c1e; font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em; color: #13202a; font-variant-numeric: tabular-nums;
 }
 .mn__detail-unit {
   font-family: "Cormorant Garamond", serif; font-style: italic;
-  font-size: 17px; color: rgba(58,50,42,0.7);
+  font-size: 17px; color: rgba(19,32,42,0.7);
 }
 .mn__detail-variants { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .mn__detail-variant {
-  font-family: var(--font-mono, monospace); font-size: 13px; color: rgba(16,28,30,0.7);
-  border: 1px solid rgba(16,28,30,0.14); border-radius: 999px; padding: 7px 13px;
+  font-family: var(--font-mono, monospace); font-size: 13px; color: rgba(19,32,42,0.7);
+  border: 1px solid rgba(47,102,192,0.16); border-radius: 999px; padding: 7px 13px;
 }
 
-/* -------- нижняя пилюля «Меню» (вход в колесо, далеко от кромки Safari) -------- */
+/* -------- кнопка «Меню» -------- */
 .mn__catbtn {
   position: fixed;
-  left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom));
-  transform: translateX(-50%) translateY(180%);
+  right: 16px;
+  top: calc(6px + env(safe-area-inset-top));
+  transform: translateY(-160%);
   opacity: 0; pointer-events: none;
-  z-index: 40;
-  display: inline-flex; align-items: center; gap: 11px;
-  padding: 13px 22px 13px 17px;
-  background: rgba(17,32,31,0.82); color: #f2e8d5;
-  border: 0; border-radius: 999px;
-  box-shadow: 0 10px 28px rgba(16,28,30,0.3);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  z-index: 55;
+  display: grid; place-items: center;
+  width: 40px; height: 40px;
+  padding: 0;
+  background: rgba(255,255,255,0.9); color: #2f66c0;
+  border: 1px solid rgba(47,102,192,0.28); border-radius: 13px;
+  box-shadow: 0 12px 30px rgba(11,25,46,0.14), inset 0 1px 0 rgba(255,255,255,0.8);
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
   cursor: pointer;
+  touch-action: manipulation;
   transition: transform 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease;
 }
-.mn__catbtn.is-shown { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
-.mn__catbtn svg { width: 19px; height: 19px; stroke: #be9667; fill: none; stroke-width: 1.4; }
+.mn__catbtn.is-shown { transform: translateY(0); opacity: 1; pointer-events: auto; }
+.mn__catbtn svg { width: 18px; height: 18px; stroke: #2f66c0; fill: none; stroke-width: 1.45; pointer-events: none; }
 .mn__catbtn-label {
-  font-family: var(--font-golos, sans-serif);
-  font-size: 13px; letter-spacing: 0.04em; font-weight: 500;
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 .mn__catbtn-hint {
-  font-size: 8.5px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: rgba(242,232,213,0.5); padding-left: 9px; border-left: 1px solid rgba(242,232,213,0.22);
+  font-size: 9px; letter-spacing: 0; text-transform: uppercase;
+  color: rgba(247,237,220,0.58); padding-left: 8px; border-left: 1px solid rgba(247,237,220,0.2);
 }
+
+.mn__cat-sheet {
+  position: fixed; inset: 0; z-index: 90;
+  display: grid; align-items: end;
+  animation: mn-cat-fade 0.22s ease both;
+}
+.mn__cat-backdrop {
+  position: absolute; inset: 0; border: 0; cursor: pointer;
+  background: rgba(11,25,46,0.28);
+  backdrop-filter: blur(8px) saturate(1.04);
+  -webkit-backdrop-filter: blur(8px) saturate(1.04);
+}
+.mn__cat-panel {
+  position: relative;
+  width: 100%;
+  max-height: min(92dvh, 760px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 9px 18px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  border-top: 1px solid rgba(47,102,192,0.18);
+  background:
+    url("/ornaments/oysters-trio.jpg") right -74px top 88px / 220px auto no-repeat,
+    url("/ornaments/dill-sprig.jpg") left -82px bottom -50px / 240px auto no-repeat,
+    #ffffff;
+  box-shadow: 0 -22px 56px rgba(11,25,46,0.18), inset 0 1px 0 rgba(255,255,255,0.8);
+  animation: mn-cat-up 0.34s cubic-bezier(0.22,1,0.36,1) both;
+}
+.mn__cat-handle {
+  display: block; width: 42px; height: 4px; margin: 2px auto 12px;
+  border-radius: 999px; background: rgba(47,102,192,0.18);
+}
+.mn__cat-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin-bottom: 15px;
+}
+.mn__cat-eyebrow {
+  display: block; margin-bottom: 4px;
+  font-size: 10px; letter-spacing: 0; text-transform: uppercase;
+  color: rgba(19,32,42,0.48);
+}
+.mn__cat-title {
+  margin: 0;
+  font-family: "Fraunces", "Cormorant Garamond", serif;
+  font-size: 32px; line-height: 1; font-weight: 430;
+  color: #13202a;
+}
+.mn__cat-close {
+  flex: 0 0 auto; width: 44px; height: 44px;
+  display: grid; place-items: center;
+  color: #13202a; border: 1px solid rgba(47,102,192,0.16); border-radius: 12px;
+  background: rgba(255,255,255,0.68); cursor: pointer;
+}
+.mn__cat-close svg { stroke: currentColor; }
+.mn__cat-flow { display: grid; gap: 12px; }
+.mn__cat-group {
+  padding-top: 10px;
+  border-top: 1px solid rgba(47,102,192,0.1);
+}
+.mn__cat-group:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.mn__cat-group-title {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 6px;
+  font-family: var(--font-golos, sans-serif);
+  font-size: 10px; line-height: 1; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0;
+  color: #2f66c0;
+}
+.mn__cat-group-title::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: rgba(47,102,192,0.18);
+}
+.mn__cat-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.mn__cat-item {
+  min-height: 50px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline; gap: 9px;
+  padding: 10px 0 11px;
+  text-align: left; color: #13202a;
+  border: 0; border-bottom: 1px solid rgba(47,102,192,0.1);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer; touch-action: manipulation;
+}
+.mn__cat-item:active { transform: scale(0.985); }
+.mn__cat-item.is-current {
+  min-height: 44px;
+  padding: 8px 12px 9px;
+  color: #ffffff;
+  border: 1px solid rgba(47,102,192,0.42);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1f67a8 0%, #2f66c0 100%);
+  box-shadow: 0 12px 22px rgba(47,102,192,0.18), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.mn__cat-group--featured .mn__cat-list {
+  grid-template-columns: 1fr;
+}
+.mn__cat-group--featured .mn__cat-item {
+  min-height: 54px;
+  padding: 12px 14px;
+  border: 1px solid rgba(190,150,103,0.24);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.3);
+}
+.mn__cat-group--featured .mn__cat-item.is-current {
+  background: linear-gradient(180deg, #153f38 0%, #102f2b 100%);
+}
+.mn__cat-name {
+  min-width: 0;
+  font-family: "Cormorant Garamond", serif; font-size: 22px; line-height: 1.05; font-weight: 600;
+}
+.mn__cat-count {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 10px; color: rgba(19,32,42,0.5); letter-spacing: 0;
+}
+.mn__cat-item.is-current .mn__cat-count { color: rgba(255,255,255,0.68); }
+@keyframes mn-cat-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mn-cat-up { from { transform: translateY(22px); } to { transform: translateY(0); } }
 
 /* -------- оверлей-лист с колесом -------- */
 .mn__sheet {
@@ -485,7 +814,7 @@
 }
 
 /* -------- полировка по ревью: тап-фидбэк, тап-таргеты, контраст, фокус, дуга -------- */
-.mn__catbtn.is-shown:active { transform: translateX(-50%) scale(0.97); }
+.mn__catbtn.is-shown:active { transform: scale(0.97); }
 /* медальон: быстрый фидбэк нажатия (box-shadow, чтобы не конфликтовать с JS-transform) */
 .cat--overlay .cat__disc { transition: transform 0.45s cubic-bezier(0.22,1,0.36,1), box-shadow 0.15s ease; }
 .cat--overlay .cat__disc:active { box-shadow: inset 0 0 0 2px #be9667, 0 10px 22px rgba(16,28,30,0.26); }
@@ -531,5 +860,5 @@
 .cat--overlay .cat__d-eyebrow { margin-bottom: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mn__top, .mn__brand, .mn__top-sub, .mn__sheet, .cat--overlay { transition: none; animation: none; }
+  .mn__top, .mn__brand, .mn__top-sub, .mn__sheet, .mn__cat-sheet, .mn__cat-panel, .cat--overlay { transition: none; animation: none; }
 }

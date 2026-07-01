@@ -3,7 +3,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { chapters, rakiChapter, formatNumber, type MenuEntry, type RakiPreparation } from "@/data/menu";
 import "./menu.css";
-import "../wheel/wheel.css"; // переиспользуем готовое боковое колесо (.cat*) с анимациями
 
 // Раки — отдельная глава в menu.ts; вводим как секцию (размер → ₽/кг).
 const RAKI_SECTION = {
@@ -27,7 +26,7 @@ const RAKI_SECTION = {
 const DRINK_IDS = ["soft", "tea", "beer"];
 const DRINKS_SECTION = {
   id: "drinks",
-  title: "Напитки",
+  title: "Коллекция напитков",
   lede: undefined as string | undefined,
   origin: undefined as string | undefined,
   entries: DRINK_IDS.flatMap((id): MenuEntry[] => {
@@ -37,41 +36,73 @@ const DRINKS_SECTION = {
     return ch.entries.map((e): MenuEntry => ({ ...e, group: e.group ?? "Пиво" }));
   }),
 };
-const SECTIONS = [
+const MENU_ORDER = [
+  "crab",
+  "raki",
+  "starters",
+  "shrimp",
+  "salads",
+  "hot",
+  "soups",
+  "mussels",
+  "mains",
+  "garnish",
+  "vongole",
+  "sauces",
+  "desserts",
+  "drinks",
+];
+
+const RAW_SECTIONS = [
   RAKI_SECTION,
   ...chapters.filter((c) => !DRINK_IDS.includes(c.id)),
   DRINKS_SECTION,
 ];
+const SECTIONS = MENU_ORDER
+  .map((id) => RAW_SECTIONS.find((section) => section.id === id))
+  .filter((section): section is NonNullable<typeof section> => Boolean(section));
 
 // Категории-списки (без фото): напитки/соусы/гарниры — компактный текст, не карточки.
-const LIST_CATEGORIES = new Set(["drinks", "sauces", "garnish"]);
+const LIST_CATEGORIES = new Set(["drinks", "sauces"]);
 
 const LABEL: Record<string, string> = {
-  raki: "Раки", crab: "Краб", shrimp: "Креветки", starters: "Закуски",
+  crab: "Камчатский краб",
+  raki: "Раки",
+  starters: "Изысканные закуски",
+  shrimp: "Креветки магаданская / медведка",
+  salads: "Авторские салаты",
+  hot: "Горячие акценты",
+  soups: "Супы",
+  mussels: "Мидии",
+  mains: "Главный курс",
+  garnish: "На гарнир",
+  vongole: "Ракушки вонголе",
+  sauces: "Соусы",
+  desserts: "Сладкий аккорд",
+  drinks: "Коллекция напитков",
+};
+
+function sectionTitle(section: { id: string; title: string }) {
+  return LABEL[section.id] ?? section.title;
+}
+
+// Короткие ярлыки для ленты-пилюль (заголовки секций остаются полными, из дока)
+const NAV_LABEL: Record<string, string> = {
+  crab: "Краб", raki: "Раки", starters: "Закуски", shrimp: "Креветки",
   salads: "Салаты", hot: "Горячее", soups: "Супы", mussels: "Мидии",
-  vongole: "Вонголе", mains: "Основные", garnish: "Гарниры", sauces: "Соусы",
+  mains: "Основные", garnish: "Гарниры", vongole: "Вонголе", sauces: "Соусы",
   desserts: "Десерты", drinks: "Напитки",
 };
 
-const CAT_FACE: Record<string, string> = {
-  shrimp: "/images/cutout/shrimp-mix.webp",
-  starters: "/images/cutout/starter-potato.webp",
-  hot: "/images/cutout/hot-hotdog.webp",
-  soups: "/images/cutout/soup-port.webp",
-  mussels: "/images/cutout/mussels-tomyam.webp",
-  vongole: "/images/cutout/vongole-arrabiata.webp",
-  salads: "/images/cutout/salads.webp",
-  mains: "/images/cutout/mains.webp",
+// Тематический значок-орнамент у заголовка секции (прозрачные PNG художницы).
+// Супу пока даём укроп — до появления ассета «суп/тарелка» от художницы.
+const SECTION_ICON: Record<string, string> = {
+  crab: "crab", raki: "crayfish-heraldic", shrimp: "shrimp",
+  starters: "oyster-pearl", salads: "dill-flower", hot: "crayfish-blue",
+  soups: "dill-coral", mussels: "mussel-blue", vongole: "clam",
+  mains: "scallop", garnish: "dill-coral", sauces: "oyster-pearl",
+  desserts: "scallop", drinks: "mussel-open",
 };
-
-// эмблема-плейсхолдер для категорий без фото — волна (морской мотив, как hero),
-// читается как задумка, а не «недогруженное фото». Заменяется на фото по номерам владельца.
-const CAT_ICON: ReactNode = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3.5 14.2c2-2.5 3.8-2.5 5.6 0s3.6 2.5 5.6 0 3.8-2.5 5.2-0.8" />
-    <path d="M5 9.6c1.7-2.1 3.1-2.1 4.6 0s2.9 2.1 4.6 0 3.1-2.1 4.3-0.7" />
-  </svg>
-);
 
 // маркеры из дока: чили — острота, помидор — рецепт «Дон с помидором». Отрисованы вручную, выверены по пикселям.
 const ChiliIcon: ReactNode = (
@@ -87,17 +118,70 @@ const TomatoIcon: ReactNode = (
   </svg>
 );
 
+function drinkLogo(entry: MenuEntry): { kind: string; src: string } | null {
+  const n = entry.name.toLowerCase();
+  if (n.includes("айингер")) return { kind: "ayinger", src: "/images/drink-logos/ayinger.webp" };
+  if (n.includes("коникс")) return { kind: "konix", src: "/images/drink-logos/konix.webp" };
+  if (n.includes("штигель")) return { kind: "stiegl", src: "/images/drink-logos/stiegl.webp" };
+  if (n.includes("шпатен")) return { kind: "spaten", src: "/images/drink-logos/spaten.webp" };
+  if (n.includes("клаусталлер")) return { kind: "clausthaler", src: "/images/drink-logos/clausthaler.webp" };
+  if (n.includes("абрау")) return { kind: "abrau", src: "/images/drink-logos/abrau4.webp" };
+  if (n.includes("сан бенедетто")) return { kind: "sanbenedetto", src: "/images/drink-logos/sanbenedetto.webp" };
+  if (n.includes("боржоми")) return { kind: "borjomi", src: "/images/drink-logos/borjomi.webp" };
+  if (n.includes("zero")) return { kind: "cola-zero", src: "/images/drink-logos/cola-zero.webp" };
+  if (n.includes("кока")) return { kind: "cola", src: "/images/drink-logos/cola.webp" };
+  if (n.includes("фанта")) return { kind: "fanta", src: "/images/drink-logos/fanta.webp" };
+  if (n.includes("yoga")) return { kind: "yoga", src: "/images/drink-logos/yoga.webp" };
+  return null;
+}
+
+function DrinkBadge({ entry }: { entry: MenuEntry }) {
+  const logo = drinkLogo(entry);
+  if (!logo) return null;
+
+  return (
+    <span className={`mn__drink-logo mn__drink-logo--${logo.kind}`} aria-hidden>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={logo.src} alt="" loading="lazy" />
+    </span>
+  );
+}
+
 // Полные фото с БЕЛЫМ студийным фоном (НЕ cutout) — ложатся под object-fit:cover карточек.
 const DISH_PHOTO: Record<string, string> = {
-  "Микс на льду: магаданская и медведка 70/90": "/images/shrimp-mix.webp",
-  "Медведка на льду 70/90": "/images/shrimp-medvedka.webp",
-  "Мидии в соусе": "/images/mussels-tomyam.webp",
-  "Вонголе в соусе": "/images/vongole-arrabiata.webp",
-  "Фиш-энд-краб": "/images/hot-fishcrab.webp",
-  "Гурмэ хот-дог с крабом и авокадо": "/images/hot-hotdog.webp",
-  "Хрустящие бородинские гренки с донским укропом": "/images/hot-grenki.webp",
-  "Золотистый бейби-картофель с балтийской килькой": "/images/starter-potato.webp",
-  "Португальский суп с раковыми шейками": "/images/soup-port.webp",
+  "Микс на льду: магаданская и медведка 70/90": "/images/menu-shrimp-mix.webp",
+  "Медведка на льду 70/90": "/images/menu-shrimp-medvedka.webp",
+  "Магаданская на льду 70/90": "/images/menu-shrimp-mix.webp",
+  "Магаданская обжаренная в азиатском стиле 70/90": "/images/menu-shrimp-hot-asian.webp",
+  "Магаданская на льду 50/70": "/images/menu-shrimp-mix.webp",
+  "Золотистый бейби-картофель с балтийской килькой": "/images/menu-starter-potato.webp",
+  "Хрустящие битые огурцы в пикантном маринаде": "/images/menu-starter-cucumbers.webp",
+  "Сет гурманских дипов с хрустящим хлебом": "/images/menu-starter-dips.webp",
+  "Карпаччо из мраморной говядины с соусом чимичурри": "/images/menu-starter-carpaccio.webp",
+  "Пряная закуска из маринованных черри и моцареллы": "/images/menu-starter-cherry-mozzarella.webp",
+  "Салат с раковыми шейками по рецепту мистера Оливье": "/images/menu-salad-olivier.webp",
+  "Тропический салат с камчатским крабом, манго и личи": "/images/menu-salad-crab.webp",
+  "Салат с ростбифом из мраморной говядины и вялеными томатами": "/images/menu-salad-roastbeef.webp",
+  "Салат с хрустящими баклажанами и сочными томатами": "/images/menu-salad-eggplant.webp",
+  "Классический греческий салат": "/images/menu-salad-greek.webp",
+  "Гурмэ хот-дог с крабом и авокадо": "/images/menu-hot-hotdog.webp",
+  "Фиш-энд-краб": "/images/menu-hot-fishcrab.webp",
+  "Куриные крылья с соусом на выбор": "/images/menu-hot-wings.webp",
+  "Острые куриные крылья": "/images/menu-hot-wings.webp",
+  "Хрустящие бородинские гренки с донским укропом": "/images/menu-hot-grenki.webp",
+  "Крафтовые куриные наггетсы": "/images/menu-hot-nuggets.webp",
+  "Португальский суп с раковыми шейками": "/images/menu-soup-port.webp",
+  "Домашняя куриная лапша": "/images/menu-soup-chicken-noodle.webp",
+  "Том-ям с раковыми шейками": "/images/menu-soup-tomyam.webp",
+  "Мидии в соусе": "/images/menu-mussels-tomyam.webp",
+  "Вонголе в соусе": "/images/menu-vongole-arrabiata.webp",
+  "Авторская паста с камчатским крабом и нори в кокосовом соусе": "/images/menu-main-crab-pasta.webp",
+  "Бифштекс под соусом из раковых шеек": "/images/menu-main-beefsteak.webp",
+  "Фетучини с раковыми шейками и молодым шпинатом": "/images/menu-main-fettuccine.webp",
+  "Картофель фри": "/images/menu-garnish-fries.webp",
+  "Батат фри": "/images/menu-garnish-sweet-potato.webp",
+  "Десерт THE RAKI": "/images/menu-dessert-the-raki.webp",
+  "Малина или вишня в молочном шоколаде": "/images/menu-dessert-raspberry-chocolate.webp",
 };
 
 const RAKI_FROM = Math.min(...rakiChapter.sizes.map((s) => s.price));
@@ -117,7 +201,7 @@ function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             className="mn__card-photo"
-            src={p.id === "boiled" ? "/images/raki-boiled.webp" : "/images/raki-fried.webp"}
+            src={p.id === "boiled" ? "/images/menu-raki-boiled.webp" : "/images/menu-raki-fried.webp"}
             alt={"Раки " + p.title.toLowerCase()}
             loading="lazy"
           />
@@ -135,7 +219,7 @@ function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
 
 /* ---------- РАКИ деталь: доска размеров S–XXL + рецепты выбранного способа ---------- */
 function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => void }) {
-  const photo = prep.id === "boiled" ? "/images/raki-boiled.webp" : "/images/raki-fried.webp";
+  const photo = prep.id === "boiled" ? "/images/menu-raki-boiled.webp" : "/images/menu-raki-fried.webp";
   return (
     <div className="mn__detail" role="dialog" aria-modal="true">
       <button className="mn__detail-bg" type="button" aria-label="Закрыть" onClick={onClose} />
@@ -150,13 +234,15 @@ function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => v
           <div className="mn__raki-head">
             <span>Размер</span>
             <span>шт / кг</span>
-            <span>цена за кг</span>
+            <span>1 кг</span>
+            <span>0,5 кг</span>
           </div>
           {rakiChapter.sizes.map((s, idx) => (
             <div className="mn__raki-size" key={s.tier}>
               <span className="mn__raki-tier" style={{ fontSize: `${22 + idx * 5}px` }}>{s.tier}</span>
               <span className="mn__raki-pieces">{s.countPerKg}</span>
               <span className="mn__raki-price">{formatNumber(s.price) + " ₽"}</span>
+              <span className="mn__raki-price">{formatNumber(s.price / 2) + " ₽"}</span>
             </div>
           ))}
         </div>
@@ -177,41 +263,116 @@ function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => v
     </div>
   );
 }
-/* ---------- ИНТРО: экран приветствия «The Raki» → растворение Роршахом ----------
-   Зелёный (наш hero-градиент) дают только маскируемый svg-rect + кляксы, которые
-   растут из разных точек и прорезают зелёный → проступает кремовое меню под оверлеем.
+/* ---------- ИНТРО: белый «лист» с лого и каракулями → прожиг пятнами Роршаха ----------
+   Пятна расширяются каждое из своей точки (края первыми, центр с лого — последним),
+   по фронту бежит тонкая гжель-кобальтовая линия и гаснет, едва фронт прошёл.
+   Меню УЖЕ лежит под листом и наводится на резкость из лёгкого расфокуса.
    Играет при КАЖДОМ открытии (без sessionStorage), тап/скролл — пропустить. */
-const BLOB_A = "M0,-9 C5,-10 11,-5 10,1 C9,7 4,11 -1,10 C-8,9 -11,2 -9,-3 C-8,-8 -4,-9 0,-9 Z";
-const BLOB_B = "M0,-8 C6,-9 10,-3 8,3 C7,9 0,11 -4,9 C-10,7 -10,0 -8,-4 C-6,-8 -3,-8 0,-8 Z";
-const BLOB_C = "M0,-10 C4,-11 7,-8 8,-3 C12,-2 12,4 7,6 C5,11 -2,12 -5,8 C-11,7 -11,-1 -8,-4 C-7,-9 -4,-9 0,-10 Z";
 
-const INK_BLOTS: { d: string; x: number; y: number; r: number; delay: number; dur: number; sc: number }[] = [
-  { d: BLOB_C, x: 50, y: 54, r: 0, delay: 1100, dur: 900, sc: 4.6 },
-  { d: BLOB_A, x: 31, y: 62, r: 30, delay: 1180, dur: 850, sc: 4.2 },
-  { d: BLOB_A, x: 69, y: 62, r: -30, delay: 1240, dur: 850, sc: 4.2 },
-  { d: BLOB_B, x: 50, y: 86, r: 10, delay: 1220, dur: 900, sc: 4.4 },
-  { d: BLOB_B, x: 28, y: 82, r: 45, delay: 1340, dur: 850, sc: 4.0 },
-  { d: BLOB_B, x: 72, y: 82, r: -45, delay: 1380, dur: 850, sc: 4.0 },
-  { d: BLOB_C, x: 14, y: 50, r: 70, delay: 1460, dur: 800, sc: 3.8 },
-  { d: BLOB_C, x: 86, y: 50, r: -70, delay: 1520, dur: 800, sc: 3.8 },
-  { d: BLOB_A, x: 27, y: 30, r: 120, delay: 1560, dur: 800, sc: 3.8 },
-  { d: BLOB_A, x: 73, y: 30, r: -120, delay: 1500, dur: 800, sc: 3.8 },
-  { d: BLOB_B, x: 50, y: 20, r: 0, delay: 1700, dur: 760, sc: 3.6 },
-  { d: BLOB_C, x: 16, y: 76, r: 200, delay: 1640, dur: 780, sc: 3.6 },
-  { d: BLOB_C, x: 84, y: 76, r: 160, delay: 1680, dur: 780, sc: 3.6 },
-  { d: BLOB_A, x: 50, y: 38, r: 90, delay: 1840, dur: 720, sc: 3.4 },
-  { d: BLOB_B, x: 38, y: 14, r: 250, delay: 1960, dur: 700, sc: 3.2 },
-  { d: BLOB_B, x: 62, y: 14, r: 280, delay: 2010, dur: 700, sc: 3.2 },
+// Три лопастных формы клякс (радиус ~65..112 в локальных единицах, центр 0,0);
+// турбулентность фильтра дорисовывает рваные языки поверх лопастей.
+const INK_SHAPES: Record<string, string> = {
+  a: "M0,-100 C50,-108 96,-84 100,-44 C103,-16 68,-6 64,16 C60,44 88,58 74,84 C58,106 18,96 -8,100 C-44,106 -76,84 -84,52 C-94,24 -70,6 -74,-22 C-78,-52 -56,-84 -24,-94 C-14,-98 -8,-99 0,-100 Z",
+  b: "M-6,-88 C34,-96 70,-78 84,-46 C96,-18 62,0 70,30 C80,64 74,94 38,92 C10,90 0,64 -24,70 C-54,78 -92,64 -96,30 C-100,-2 -78,-20 -82,-48 C-84,-72 -60,-84 -34,-90 C-24,-92 -14,-90 -6,-88 Z",
+  c: "M8,-96 C40,-104 64,-80 58,-52 C90,-60 108,-30 96,-4 C86,16 60,16 58,38 C76,58 66,92 36,94 C12,96 4,74 -20,82 C-48,90 -76,74 -78,44 C-80,20 -60,10 -66,-16 C-72,-44 -92,-54 -84,-76 C-76,-94 -48,-88 -28,-84 C-12,-94 -2,-92 8,-96 Z",
+};
+
+// Очаги в дизайн-пространстве 390×844 (масштабируется под реальный вьюпорт).
+// Края/углы первыми, центр (лого) — последним; иерархия размеров; ритм капель кластерами;
+// у каждой кляксы свои длительность и поворот — рост живой, не хоровой.
+type InkFocus = { x: number; y: number; r: number; d: number; rot: number; s: string; dur: number };
+const INK_FOCI: InkFocus[] = [
+  { x: 40, y: 60, r: 150, d: 0.00, rot: 0, s: "a", dur: 1.45 },
+  { x: 360, y: 130, r: 195, d: 0.20, rot: 130, s: "b", dur: 1.55 },
+  { x: 30, y: 500, r: 170, d: 0.26, rot: 255, s: "c", dur: 1.45 },
+  { x: 380, y: 430, r: 135, d: 0.50, rot: 40, s: "a", dur: 1.30 },
+  { x: 170, y: 805, r: 215, d: 0.56, rot: 200, s: "b", dur: 1.50 },
+  { x: 8, y: 255, r: 110, d: 0.60, rot: 320, s: "c", dur: 1.20 },
+  { x: 362, y: 730, r: 130, d: 0.78, rot: 85, s: "c", dur: 1.25 },
+  { x: 300, y: 290, r: 100, d: 0.84, rot: 170, s: "b", dur: 1.15 },
+  { x: 195, y: 430, r: 205, d: 1.02, rot: 15, s: "a", dur: 1.15 },
 ];
+// Микро-брызги: мелкие капли рядом с крупными кляксами, чуть позже родителя.
+const INK_SPECKS: InkFocus[] = [
+  { x: 330, y: 38, r: 15, d: 0.30, rot: 60, s: "c", dur: 0.90 },
+  { x: 238, y: 206, r: 10, d: 0.52, rot: 220, s: "a", dur: 0.85 },
+  { x: 62, y: 642, r: 13, d: 0.46, rot: 145, s: "b", dur: 0.90 },
+  { x: 286, y: 604, r: 10, d: 0.76, rot: 305, s: "a", dur: 0.85 },
+  { x: 106, y: 352, r: 9, d: 0.92, rot: 20, s: "c", dur: 0.80 },
+];
+const INK_ALL = [...INK_FOCI, ...INK_SPECKS];
+const INK_START = 1.30; // лого + влёт каракулей, затем первый поджиг, с
+const INK_STAGGER = 0.62;
+const INTRO_TOTAL_MS = 3700; // конец прожига + короткий выдох
+
+// Композиция каракулей на заставке — рамкой вокруг центрального лого.
+// Хореография: СНАЧАЛА лого, затем каракули ВЛЕТАЮТ из-за экрана с тех сторон,
+// где стоят (fx/fy — вектор влёта, px), встают на места — и лишь потом поджиг.
+const INTRO_ORNAMENTS: { src: string; x: number; y: number; w: number; r: number; d: number; fx: number; fy: number }[] = [
+  { src: "dill-flower", x: 16, y: 13, w: 132, r: -12, d: 450, fx: -150, fy: -110 },
+  { src: "shrimp", x: 84, y: 15, w: 150, r: 8, d: 520, fx: 150, fy: -110 },
+  { src: "mussel-blue", x: 4, y: 34, w: 116, r: 16, d: 590, fx: -160, fy: 0 },
+  { src: "oyster-pearl", x: 97, y: 36, w: 118, r: -14, d: 660, fx: 160, fy: 0 },
+  { src: "scallop", x: 19, y: 82, w: 128, r: -8, d: 730, fx: -150, fy: 120 },
+  { src: "crab", x: 82, y: 84, w: 150, r: 10, d: 800, fx: 150, fy: 120 },
+  { src: "dill-coral", x: 50, y: 95, w: 150, r: 4, d: 870, fx: 0, fy: 150 },
+];
+
+// Амбиентные иллюстрации меню: рассыпаны по краям ВСЕЙ страницы в разнобой (как хотела
+// художница — «паттерн по всему меню»), приглушены, дрейфуют при скролле (параллакс
+// относительно центра вьюпорта). top — % высоты всей ленты; side — край; speed — множитель.
+const MENU_ORNAMENTS: { src: string; side: "left" | "right"; top: number; w: number; r: number; speed: number }[] = [
+  { src: "shrimp", side: "right", top: 3, w: 150, r: 8, speed: 0.05 },
+  { src: "dill-coral", side: "left", top: 9, w: 152, r: -10, speed: -0.04 },
+  { src: "oyster-pearl", side: "right", top: 16, w: 128, r: 12, speed: 0.06 },
+  { src: "scallop", side: "left", top: 23, w: 140, r: -8, speed: -0.05 },
+  { src: "mussel-blue", side: "right", top: 31, w: 138, r: 14, speed: 0.045 },
+  { src: "clam", side: "left", top: 39, w: 132, r: -12, speed: -0.04 },
+  { src: "dill-flower", side: "right", top: 47, w: 142, r: 6, speed: 0.05 },
+  { src: "crayfish-blue", side: "left", top: 55, w: 150, r: 10, speed: -0.045 },
+  { src: "oyster-pearl", side: "right", top: 63, w: 124, r: -14, speed: 0.06 },
+  { src: "mussel-open", side: "left", top: 71, w: 150, r: 8, speed: -0.035 },
+  { src: "scallop", side: "right", top: 79, w: 134, r: -10, speed: 0.05 },
+  { src: "dill-coral", side: "left", top: 87, w: 150, r: 12, speed: -0.04 },
+  { src: "crab", side: "right", top: 94, w: 150, r: -8, speed: 0.05 },
+];
+
+// Один элемент-клякса для маски: растёт из своей точки; в режиме line дополнительно
+// гаснет (вторая анимация), едва фронт прошёл — статичных линий не остаётся.
+function InkBlob({ f, mode }: { f: InkFocus; mode: "fill" | "cut" | "line" }) {
+  const delay = INK_START + f.d * INK_STAGGER;
+  const factor = mode === "cut" ? 0.95 : mode === "line" ? 0.992 : 1;
+  const style: CSSProperties =
+    mode === "line"
+      ? { animationDelay: `${delay.toFixed(3)}s, ${(delay + f.dur * 0.85).toFixed(3)}s`, animationDuration: `${f.dur}s, 0.35s` }
+      : { animationDelay: `${delay.toFixed(3)}s`, animationDuration: `${f.dur}s` };
+  return (
+    <g transform={`translate(${f.x} ${f.y}) rotate(${f.rot}) scale(${((f.r / 100) * factor).toFixed(4)})`}>
+      <path
+        className={"mn-intro__blot" + (mode === "line" ? " mn-intro__blot--line" : "")}
+        d={INK_SHAPES[f.s]}
+        {...(mode === "line"
+          ? { fill: "none", stroke: "#fff", strokeWidth: 1.6, vectorEffect: "non-scaling-stroke" as const }
+          : { fill: "#000" })}
+        style={style}
+      />
+    </g>
+  );
+}
 
 function MenuIntro({ onDone }: { onDone: () => void }) {
   const [done, setDone] = useState(false);
+  // дизайн-пространство клякс 390×844 → масштабируем под реальный вьюпорт.
+  // Первый рендер ВСЕГДА 390×844 (SSR = клиент, иначе hydration mismatch);
+  // реальный размер подставляется в useEffect до старта первого поджига (0.75s).
+  const [vp, setVp] = useState({ w: 390, h: 844 });
 
   useEffect(() => {
+    setVp({ w: window.innerWidth, h: window.innerHeight });
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const finish = () => { setDone(true); onDone(); };
     if (reduce) { finish(); return; }
-    const t = window.setTimeout(finish, 3000); // совпадает с завершением растворения
+    const t = window.setTimeout(finish, INTRO_TOTAL_MS);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -220,53 +381,86 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
 
   if (done) return null;
 
+  const sx = (vp.w / 390).toFixed(4);
+  const sy = (vp.h / 844).toFixed(4);
+  const scale = `scale(${sx} ${sy})`;
+
   return (
     <div className="mn-intro" role="presentation" onPointerDown={skip} onWheel={skip} onTouchStart={skip}>
-      <svg className="mn-intro__ink" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden>
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
         <defs>
-          <radialGradient id="mn-intro-green" cx="50%" cy="6%" r="120%">
-            <stop offset="0%" stopColor="#11454c" />
-            <stop offset="52%" stopColor="#0b3237" />
-            <stop offset="100%" stopColor="#07262a" />
-          </radialGradient>
-          <mask id="mn-intro-mask">
-            <rect x="-20" y="-20" width="140" height="140" fill="#fff" />
-            <g fill="#000">
-              {INK_BLOTS.map((b, i) => (
-                <g key={i} transform={`translate(${b.x} ${b.y}) rotate(${b.r})`}>
-                  <path
-                    className="mn-intro__blot"
-                    d={b.d}
-                    style={{ animationDelay: `${b.delay}ms`, animationDuration: `${b.dur}ms`, "--bs": b.sc } as CSSProperties}
-                  />
-                </g>
-              ))}
+          {/* форма прожига: лёгкое слияние соседей + крупно-лопастное искажение края */}
+          <filter id="mn-goo" x="-60%" y="-60%" width="220%" height="220%" colorInterpolationFilters="sRGB">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" result="goo" />
+            <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="2" seed="7" result="noise" />
+            <feDisplacementMap in="goo" in2="noise" scale="30" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          {/* линия: то же поле шума (кромка следует за краем дыры), без слипания */}
+          <filter id="mn-gooline" x="-60%" y="-60%" width="220%" height="220%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="2" seed="7" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="30" xChannelSelector="R" yChannelSelector="G" result="disp" />
+            <feGaussianBlur in="disp" stdDeviation="0.4" />
+          </filter>
+          <mask id="mn-paper-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={vp.w} height={vp.h}>
+            <rect x="0" y="0" width={vp.w} height={vp.h} fill="#fff" />
+            <g transform={scale} filter="url(#mn-goo)">
+              {INK_ALL.map((f, i) => <InkBlob key={i} f={f} mode="fill" />)}
+            </g>
+          </mask>
+          {/* линия = обводка МИНУС выгоревшее ядро → остаётся только фронт прожига */}
+          <mask id="mn-line-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={vp.w} height={vp.h}>
+            <rect x="0" y="0" width={vp.w} height={vp.h} fill="#000" />
+            <g transform={scale} filter="url(#mn-gooline)">
+              {INK_ALL.map((f, i) => <InkBlob key={i} f={f} mode="line" />)}
+            </g>
+            <g transform={scale} filter="url(#mn-goo)">
+              {INK_ALL.map((f, i) => <InkBlob key={i} f={f} mode="cut" />)}
             </g>
           </mask>
         </defs>
-        <rect x="-20" y="-20" width="140" height="140" fill="url(#mn-intro-green)" mask="url(#mn-intro-mask)" />
       </svg>
-      <div className="mn-intro__glow" aria-hidden />
-      <div className="mn-intro__grain" aria-hidden />
-      <div className="mn-intro__brand">
-        <span className="mn-intro__eyebrow">Раковарня · Москва</span>
-        <span className="mn-intro__word">The <em>Raki</em></span>
-        <span className="mn-intro__sub">Карта раковарни</span>
+
+      {/* белый лист: лого + каракули НА листе — сгорают вместе с ним */}
+      <div className="mn-intro__paper">
+        <div className="mn-intro__grain" aria-hidden />
+        <div className="mn-intro__scatter" aria-hidden>
+          {INTRO_ORNAMENTS.map((o, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={i}
+              src={`/ornaments/${o.src}.png`}
+              alt=""
+              className="mn-intro__orn"
+              style={{ "--x": o.x, "--y": o.y, "--w": o.w, "--r": `${o.r}deg`, "--d": `${o.d}ms`, "--fx": `${o.fx}px`, "--fy": `${o.fy}px` } as CSSProperties}
+            />
+          ))}
+        </div>
+        <div className="mn-intro__brand">
+          <span className="mn-intro__eyebrow">Раковарня · Москва</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="mn-intro__logo" src="/ornaments/logo-black.png" alt="The Raki" />
+          <span className="mn-intro__sub">Карта раковарни</span>
+        </div>
       </div>
+
+      {/* тонкая гжель-кобальтовая линия по фронту прожига */}
+      <div className="mn-intro__edge" aria-hidden />
     </div>
   );
 }
 
 export default function Menu() {
-  const [active, setActive] = useState("raki");
-  const [open, setOpen] = useState(false); // оверлей-колесо категорий
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
   const [rakiPrep, setRakiPrep] = useState<RakiPreparation | null>(null); // деталь раков (способ)
   const [introDone, setIntroDone] = useState(false); // интро растворилось
   const [subGroup, setSubGroup] = useState<string | null>(null); // под-группа «Напитков» для липкого под-бара
+  const [active, setActive] = useState("crab"); // текущая секция для ленты-пилюль
+  const ambientRef = useRef<HTMLDivElement | null>(null); // слой амбиентных иллюстраций (параллакс)
+  const tabsRef = useRef<HTMLElement | null>(null); // лента-пилюли (автоцентрируем активную)
   const handleIntroDone = useCallback(() => setIntroDone(true), []);
 
-  // scroll-spy: подсветка текущей категории в masthead/кнопке (без гонки — просто active)
+  // scroll-spy: подсветка текущей секции в ленте-пилюлях
   useEffect(() => {
     const secs = SECTIONS
       .map((s) => document.getElementById(`mn-${s.id}`))
@@ -279,17 +473,55 @@ export default function Menu() {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
         if (top) setActive(top.target.id.replace(/^mn-/, ""));
       },
-      { rootMargin: "-12% 0px -76% 0px", threshold: 0 },
+      { rootMargin: "-18% 0px -70% 0px", threshold: 0 },
     );
     secs.forEach((s) => obs.observe(s));
     return () => obs.disconnect();
   }, []);
 
-  // блокируем фоновый скролл: пока идёт интро, открыт оверлей или карточка блюда
+  // активная пилюля всегда в кадре ленты. Автоцентр НАМЕРЕННО instant:
+  // второй одновременный smooth-скролл гасит smooth-прыжок страницы к секции (Chromium).
   useEffect(() => {
-    document.body.style.overflow = open || detail || rakiPrep || !introDone ? "hidden" : "";
+    const strip = tabsRef.current;
+    const el = strip?.querySelector<HTMLElement>(".mn__tab.is-active");
+    if (!strip || !el) return;
+    strip.scrollTo({ left: el.offsetLeft - strip.clientWidth / 2 + el.clientWidth / 2 });
+  }, [active]);
+
+  const pick = useCallback((id: string) => {
+    setActive(id);
+    document.getElementById(`mn-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  // Параллакс амбиентного слоя: каждый орнамент дрейфует translateY = scrollY * speed.
+  useEffect(() => {
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return;
+    const layer = ambientRef.current;
+    if (!layer) return;
+    const items = Array.from(layer.querySelectorAll<HTMLElement>(".mn__amb"));
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const vpMid = window.scrollY + window.innerHeight / 2;
+      for (const el of items) {
+        const sp = parseFloat(el.dataset.speed || "0");
+        const center = el.offsetTop + el.offsetHeight / 2; // позиция орнамента на ленте
+        const drift = (vpMid - center) * sp;               // дрейф относительно центра экрана (ограничен)
+        el.style.transform = `translate3d(0, ${drift.toFixed(1)}px, 0) rotate(var(--r))`;
+      }
+    };
+    const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(apply); };
+    apply();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, []);
+
+  // блокируем фоновый скролл: пока идёт интро или открыта карточка блюда/деталь раков
+  useEffect(() => {
+    document.body.style.overflow = detail || rakiPrep || !introDone ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [open, detail, rakiPrep, introDone]);
+  }, [detail, rakiPrep, introDone]);
 
   // §3A: плавное появление карточек/строк/заголовков при входе во вьюпорт (как на сайте).
   // Scroll-sweep (надёжнее IntersectionObserver, который пропускает при быстром скролле):
@@ -351,41 +583,71 @@ export default function Menu() {
     };
   }, []);
 
-  const pick = (id: string) => {
-    setOpen(false);
-    setActive(id);
-    requestAnimationFrame(() => {
-      document.getElementById(`mn-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  };
-
   return (
-    <div className="mn">
+    <div className={"mn" + (introDone ? " mn--introdone" : "")}>
       <MenuIntro onDone={handleIntroDone} />
 
+      {/* Амбиентный слой иллюстраций (ironhill-стиль): по краям, приглушённо,
+          с лёгким параллакс-дрейфом при скролле — за контентом, не перекрывает. */}
+      <div className="mn__ambient" aria-hidden ref={ambientRef}>
+        {MENU_ORNAMENTS.map((o, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={i}
+            src={`/ornaments/${o.src}.png`}
+            alt=""
+            className={"mn__amb mn__amb--" + o.side}
+            data-speed={o.speed}
+            style={{ "--top": o.top, "--w": `${o.w}px`, "--r": `${o.r}deg` } as CSSProperties}
+          />
+        ))}
+      </div>
+
       <header className={"mn__top" + (introDone ? " is-shown" : "")}>
-        <span className="mn__brand">The <em>Raki</em></span>
-        {subGroup ? (
-          <span className="mn__top-sub" aria-live="polite">{subGroup}</span>
-        ) : null}
+        <div className="mn__top-row">
+          <span className="mn__brand">The <em>Raki</em></span>
+          {subGroup ? (
+            <span className="mn__top-sub" aria-live="polite">{subGroup}</span>
+          ) : null}
+        </div>
+        <nav className="mn__tabs" aria-label="Разделы меню" ref={tabsRef}>
+          {SECTIONS.map((sec) => (
+            <button
+              key={sec.id}
+              type="button"
+              className={"mn__tab" + (active === sec.id ? " is-active" : "")}
+              onClick={() => pick(sec.id)}
+            >
+              {NAV_LABEL[sec.id] ?? sectionTitle(sec)}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <main>
+      <main className={introDone ? undefined : "is-veiled"}>
         {SECTIONS.map((sec) => (
           <section className="mn__section" id={`mn-${sec.id}`} key={sec.id}>
-            <h2 className="mn__ch">{sec.title}</h2>
+            <h2 className="mn__ch">
+              <span className="mn__ch-text">{sectionTitle(sec)}</span>
+              {SECTION_ICON[sec.id] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="mn__ch-icon" src={`/ornaments/${SECTION_ICON[sec.id]}.png`} alt="" aria-hidden />
+              ) : null}
+            </h2>
             {sec.lede ? <span className="mn__ch-lede">{sec.lede}</span> : null}
             <div className="mn__rule" />
             {sec.id === "raki" ? (
               <RakiBlock onOpen={setRakiPrep} />
             ) : LIST_CATEGORIES.has(sec.id) ? (
-              <div className="mn__list">
+              <div className={"mn__list" + (sec.id === "drinks" ? " mn__list--badges" : "")}>
                 {sec.entries.map((e, i) => {
                   const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
+                  const hasDrinkLogo = sec.id === "drinks" && Boolean(drinkLogo(e));
                   return (
                     <Fragment key={e.name}>
                       {showGroup ? <div className="mn__group">{e.group}</div> : null}
-                      <div className="mn__row">
+                      <div className={"mn__row" + (hasDrinkLogo ? " mn__row--with-badge" : "")}>
+                        {hasDrinkLogo ? <DrinkBadge entry={e} /> : null}
                         <span className="mn__row-name">
                           {e.name}
                           {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
@@ -423,7 +685,10 @@ export default function Menu() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img className="mn__card-photo" src={photo} alt={e.name} loading="lazy" />
                     ) : (
-                      <div className="mn__card-ph" aria-hidden>{CAT_ICON}</div>
+                      <div className="mn__card-ph" aria-hidden>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/ornaments/${SECTION_ICON[sec.id] ?? "oyster-pearl"}.png`} alt="" />
+                      </div>
                     )}
                     <div className="mn__card-body">
                       <h3 className="mn__card-name">
@@ -443,22 +708,6 @@ export default function Menu() {
           </section>
         ))}
       </main>
-
-      {/* нижняя пилюля «Меню» — палец далеко от кромки Safari (вход в колесо) */}
-      <button className={"mn__catbtn" + (introDone ? " is-shown" : "")} type="button" onClick={() => setOpen(true)} aria-haspopup="dialog">
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <rect x="3.5" y="3.5" width="7.4" height="7.4" rx="1.6" />
-          <rect x="13.1" y="3.5" width="7.4" height="7.4" rx="1.6" />
-          <rect x="3.5" y="13.1" width="7.4" height="7.4" rx="1.6" />
-          <rect x="13.1" y="13.1" width="7.4" height="7.4" rx="1.6" />
-        </svg>
-        <span className="mn__catbtn-label">{LABEL[active] ?? "Категории"}</span>
-        <span className="mn__catbtn-hint">меню</span>
-      </button>
-
-      {open ? (
-        <CategoryWheel active={active} onPick={pick} onClose={() => setOpen(false)} />
-      ) : null}
 
       {detail ? <DishDetail entry={detail} onClose={() => setDetail(null)} /> : null}
 
@@ -499,207 +748,6 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
             ))}
           </div>
         ) : null}
-      </div>
-    </div>
-  );
-}
-
-/* ---------- ОВЕРЛЕЙ = ГОТОВОЕ БОКОВОЕ КОЛЕСО /wheel (.cat*), наполненное КАТЕГОРИЯМИ ----------
-   Та же геометрия/анимации, что и на /wheel: дуга справа, фокус крупнее,
-   подпись сбоку, инерция + snap, появление текста карточки. Тап медальона
-   или «Открыть» → выбор категории (закрыть + прыжок списка). */
-function CategoryWheel({
-  active, onPick, onClose,
-}: { active: string; onPick: (id: string) => void; onClose: () => void }) {
-  const railRef = useRef<HTMLDivElement>(null);
-  const dishRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const detailRef = useRef<HTMLDivElement>(null);
-  const startIdx = Math.max(0, SECTIONS.findIndex((s) => s.id === active));
-  const [focus, setFocus] = useState(startIdx);
-
-  const rot = useRef(startIdx);
-  const vel = useRef(0);
-  const dragging = useRef(false);
-  const lastY = useRef(0);
-  const lastT = useRef(0);
-  const focusRef = useRef(-1);
-
-  useEffect(() => {
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const N = SECTIONS.length;
-    const STEP = (40 * Math.PI) / 180;
-    const DISC = 116;
-    const vh = () => window.innerHeight;
-    const vw = () => window.innerWidth;
-    const geom = () => ({ cx: vw() * 1.33, cy: vh() * 0.46, R: vw() * 0.62 });
-
-    const placeRail = () => {
-      const { cx, cy, R } = geom();
-      const el = railRef.current;
-      if (!el) return;
-      el.style.width = `${2 * R}px`; el.style.height = `${2 * R}px`;
-      el.style.left = `${cx - R}px`; el.style.top = `${cy - R}px`;
-    };
-
-    const render = () => {
-      const { cx, cy, R } = geom();
-      let nearest = 0, nd = 99;
-      for (let i = 0; i < N; i++) {
-        const el = dishRefs.current[i];
-        if (!el) continue;
-        const a = (i - rot.current) * STEP;
-        const aa = Math.abs(a);
-        if (aa < nd) { nd = aa; nearest = i; }
-        const X = cx - Math.cos(a) * R;
-        const Y = cy + Math.sin(a) * R;
-        const op = aa > 1.75 ? 0 : Math.max(0, 1.25 - aa * 0.62);
-        el.style.transform = `translate3d(${(X - DISC / 2).toFixed(1)}px, ${(Y - DISC / 2).toFixed(1)}px, 0)`;
-        el.style.opacity = op.toFixed(3);
-        el.style.zIndex = String(100 - Math.round(aa * 20));
-        el.classList.toggle("is-focus", aa < 0.35);
-        el.classList.toggle("show-label", aa > 0.35 && aa < 1.25); // подпись и верхним соседям, не только нижним
-      }
-      if (nearest !== focusRef.current) {
-        focusRef.current = nearest; setFocus(nearest);
-        navigator.vibrate?.(8); // тик на каждую категорию (барабан-фидбэк; Android, iOS Safari игнорит)
-      }
-    };
-
-    let raf = 0;
-    const loop = () => {
-      if (!dragging.current) {
-        rot.current += vel.current;
-        vel.current *= 0.9;
-        const max = N - 1;
-        if (rot.current < 0) { rot.current *= 0.8; vel.current = 0; }
-        if (rot.current > max) { rot.current = max + (rot.current - max) * 0.8; vel.current = 0; }
-        if (Math.abs(vel.current) < 0.0015) {
-          const t = Math.max(0, Math.min(max, Math.round(rot.current)));
-          rot.current += (t - rot.current) * 0.16;
-        }
-      }
-      render();
-      raf = requestAnimationFrame(loop);
-    };
-    placeRail();
-    render();
-    if (!reduce) raf = requestAnimationFrame(loop);
-
-    let moved = false, startX = 0, startY = 0;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      // не крутить только на интерактиве (карточка/кнопки/шапка); мёртвой зоны больше нет
-      if (t && t.closest(".cat__detail, .cat__close, .cat__header")) return;
-      dragging.current = true; moved = false;
-      startX = e.clientX; startY = e.clientY;
-      lastY.current = e.clientY; lastT.current = e.timeStamp; vel.current = 0;
-      (e.target as HTMLElement)?.setPointerCapture?.(e.pointerId);
-    };
-    const onMove = (e: PointerEvent) => {
-      if (!dragging.current) return;
-      const dy = e.clientY - lastY.current;
-      const dt = Math.max(1, e.timeStamp - lastT.current);
-      const dRot = -dy / 130;
-      rot.current += dRot;
-      vel.current = dRot * (16 / dt);
-      lastY.current = e.clientY; lastT.current = e.timeStamp;
-      // тап vs драг — по 2D-смещению от старта (диагональ по дуге больше не ложный тап)
-      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 6) moved = true;
-    };
-    const onUp = (e: PointerEvent) => {
-      if (!dragging.current) return;
-      dragging.current = false;
-      if (!moved) {
-        const b = (e.target as HTMLElement)?.closest(".cat__dish");
-        const di = b?.getAttribute("data-i");
-        if (di != null) {
-          // поглотить «призрачный» click после закрытия колеса — иначе он проваливается
-          // на карточку блюда под оверлеем и открывает её деталь
-          const swallow = (ev: Event) => { ev.preventDefault(); ev.stopPropagation(); };
-          window.addEventListener("click", swallow, { capture: true, once: true });
-          window.setTimeout(() => window.removeEventListener("click", swallow, true), 500);
-          onPick(SECTIONS[Math.max(0, Math.min(N - 1, Number(di)))].id);
-        }
-      }
-    };
-    const onWheel = (e: WheelEvent) => { e.preventDefault(); rot.current += e.deltaY / 380; vel.current = 0; };
-    const onResize = () => { placeRail(); render(); };
-
-    const surf = railRef.current?.parentElement ?? window;
-    surf.addEventListener("pointerdown", onDown as EventListener);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    surf.addEventListener("wheel", onWheel as EventListener, { passive: false });
-    window.addEventListener("resize", onResize);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      surf.removeEventListener("pointerdown", onDown as EventListener);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      surf.removeEventListener("wheel", onWheel as EventListener);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [onPick]);
-
-  useEffect(() => {
-    const el = detailRef.current;
-    if (!el) return;
-    el.removeAttribute("data-anim");
-    void el.offsetWidth;
-    el.setAttribute("data-anim", "1");
-  }, [focus]);
-
-  const c = SECTIONS[focus];
-
-  return (
-    <div className="cat cat--overlay" role="dialog" aria-modal="true">
-      <header className="cat__header">
-        <div className="cat__brand">
-          <span className="cat__eyebrow">Раковарня · Москва</span>
-          The <em>Raki</em>
-        </div>
-        <button className="cat__close" type="button" aria-label="Закрыть" onClick={onClose}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 6l12 12M18 6L6 18" /></svg>
-        </button>
-      </header>
-
-      <div className="cat__rail" ref={railRef} aria-hidden />
-
-      <div className="cat__stage">
-        {SECTIONS.map((sec, i) => {
-          const face = CAT_FACE[sec.id];
-          return (
-            <div className="cat__dish" key={sec.id} data-i={i} ref={(el) => { dishRefs.current[i] = el; }}>
-              <span className="cat__dish-label">
-                <span className="cat__dish-lname">{LABEL[sec.id]}</span>
-              </span>
-              <div className="cat__disc">
-                {face ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={face} alt={LABEL[sec.id]} draggable={false} />
-                ) : (
-                  <span className="cat__disc-icon">{CAT_ICON}</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="cat__detail" ref={detailRef} data-anim="1">
-        <span className="cat__d-eyebrow">Категория</span>
-        <h1 className="cat__d-name">{LABEL[c.id] ?? c.title}</h1>
-        <div className="cat__d-actions">
-          <button className="cat__d-more" type="button" onClick={() => onPick(c.id)}>
-            Открыть
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="cat__hint">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3.1" /><path d="M12 6.4V3.2M12 20.8v-3.2M9.4 5l2.6-2.6L14.6 5M9.4 19l2.6 2.6 2.6-2.6" /></svg>
-        Прокрутите колесо
       </div>
     </div>
   );
