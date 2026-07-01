@@ -106,8 +106,10 @@ body:has(.mn) { background: #ffffff; }
   text-align: center; padding: 0 28px; color: #13202a;
   animation: mn-brand-out 0.5s cubic-bezier(0.4,0,0.8,0.4) 1.90s both;
 }
+/* без blur: анимированный filter = перерисовка слоя каждый кадр (лагало на среднем Android);
+   opacity+transform композитятся на GPU бесплатно, «таяние» читается так же */
 @keyframes mn-brand-out {
-  to { opacity: 0; filter: blur(4px); transform: translateY(-10px) scale(0.985); }
+  to { opacity: 0; transform: translateY(-10px) scale(0.985); }
 }
 .mn-intro__logo {
   width: min(72vw, 300px); height: auto; margin-bottom: 14px;
@@ -135,12 +137,13 @@ body:has(.mn) { background: #ffffff; }
 /* Меню УЖЕ лежит под листом: не «появляется», а наводится на резкость из расфокуса.
    На скипе интро класс mn--introdone мгновенно снимает вуаль. */
 .mn main {
-  animation: mn-focus 1.5s ease-out 1.6s both;
+  /* Пока дырки прожига малы — blur СТАТИЧНЫЙ (браузер кэширует отрисовку, кадры
+     бесплатны); анимируется только в финальные 0.6с — «наводка на резкость»
+     остаётся, а дорогих кадров с пересчётом blur втрое меньше (лаг Android). */
+  animation: mn-fade 1.5s ease-out 1.6s both, mn-sharpen 0.6s ease-out 2.5s both;
 }
-@keyframes mn-focus {
-  from { filter: blur(7px); opacity: 0.55; }
-  to   { filter: blur(0);   opacity: 1; }
-}
+@keyframes mn-fade { from { opacity: 0.55; } to { opacity: 1; } }
+@keyframes mn-sharpen { from { filter: blur(4px); } to { filter: blur(0); } }
 .mn--introdone main { animation: none; filter: none; opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
