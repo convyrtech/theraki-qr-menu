@@ -340,14 +340,15 @@ const INTRO_TOTAL_MS = 3700; // конец прожига + короткий в�
 // Композиция каракулей на заставке — рамкой вокруг центрального лого.
 // Хореография: СНАЧАЛА лого, затем каракули ВЛЕТАЮТ из-за экрана с тех сторон,
 // где стоят (fx/fy — вектор влёта, px), встают на места — и лишь потом поджиг.
-const INTRO_ORNAMENTS: { src: string; x: number; y: number; w: number; r: number; d: number; fx: number; fy: number }[] = [
-  { src: "dill-flower", x: 16, y: 13, w: 132, r: -12, d: 450, fx: -150, fy: -110 },
-  { src: "shrimp", x: 84, y: 15, w: 150, r: 8, d: 520, fx: 150, fy: -110 },
-  { src: "mussel-blue", x: 4, y: 34, w: 116, r: 16, d: 590, fx: -160, fy: 0 },
-  { src: "oyster-pearl", x: 97, y: 36, w: 118, r: -14, d: 660, fx: 160, fy: 0 },
-  { src: "scallop", x: 19, y: 82, w: 128, r: -8, d: 730, fx: -150, fy: 120 },
-  { src: "crab", x: 82, y: 84, w: 150, r: 10, d: 800, fx: 150, fy: 120 },
-  { src: "dill-coral", x: 50, y: 95, w: 150, r: 4, d: 870, fx: 0, fy: 150 },
+// ratio = h/w файла (SVG <image> требует явную высоту; сняты с webp при сборке)
+const INTRO_ORNAMENTS: { src: string; x: number; y: number; w: number; ratio: number; r: number; d: number; fx: number; fy: number }[] = [
+  { src: "dill-flower", x: 16, y: 13, w: 132, ratio: 1.0, r: -12, d: 450, fx: -150, fy: -110 },
+  { src: "shrimp", x: 84, y: 15, w: 150, ratio: 0.8613, r: 8, d: 520, fx: 150, fy: -110 },
+  { src: "mussel-blue", x: 4, y: 34, w: 116, ratio: 1.0802, r: 16, d: 590, fx: -160, fy: 0 },
+  { src: "oyster-pearl", x: 97, y: 36, w: 118, ratio: 1.0323, r: -14, d: 660, fx: 160, fy: 0 },
+  { src: "scallop", x: 19, y: 82, w: 128, ratio: 0.9883, r: -8, d: 730, fx: -150, fy: 120 },
+  { src: "crab", x: 82, y: 84, w: 150, ratio: 0.9355, r: 10, d: 800, fx: 150, fy: 120 },
+  { src: "dill-coral", x: 50, y: 95, w: 150, ratio: 0.9023, r: 4, d: 870, fx: 0, fy: 150 },
 ];
 
 // Фон меню: БЕСШОВНЫЙ плотный паттерн из каракулей (pattern-tile.png, собран
@@ -409,14 +410,12 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="mn-intro" role="presentation" onPointerDown={skip} onWheel={skip} onTouchStart={skip}>
-      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+      {/* ВСЯ сцена прожига — ОДИН inline-SVG: маски применяются к SVG-элементам
+          (Safari/iOS не поддерживает CSS mask:url(#svgMask) на HTML-слоях).
+          Лист+зерно+каракули — в маскируемой группе (сгорают вместе),
+          кобальтовая кромка — вторая группа с line-маской и SVG-градиентом. */}
+      <svg className="mn-intro__stage" width={vp.w} height={vp.h} viewBox={`0 0 ${vp.w} ${vp.h}`} aria-hidden>
         <defs>
-          {/* рваные края запечены в сами контуры — рантайм-фильтров нет */}
-          {/* линия: то же поле шума (кромка следует за краем дыры) */}
-          <filter id="mn-gooline" x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
-            <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="1" seed="7" result="noise" />
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="30" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
           <mask id="mn-paper-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={vp.w} height={vp.h}>
             <rect x="0" y="0" width={vp.w} height={vp.h} fill="#fff" />
             <g transform={scale}>
@@ -433,34 +432,47 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
               {INK_ALL.map((f, i) => <InkBlob key={i} f={f} mode="cut" />)}
             </g>
           </mask>
+          <radialGradient id="mn-edge-grad" cx="50%" cy="50%" r="72%">
+            <stop offset="0%" stopColor="#5b8fda" />
+            <stop offset="100%" stopColor="#2f66c0" />
+          </radialGradient>
+          <pattern id="mn-grain" patternUnits="userSpaceOnUse" width="140" height="140">
+            <image width="140" height="140" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E" />
+          </pattern>
         </defs>
+
+        {/* белый лист + зерно + каракули: сгорают одной группой */}
+        <g mask="url(#mn-paper-mask)">
+          <rect x="0" y="0" width={vp.w} height={vp.h} fill="#ffffff" />
+          <rect x="0" y="0" width={vp.w} height={vp.h} fill="url(#mn-grain)" opacity="0.05" />
+          {INTRO_ORNAMENTS.map((o, i) => {
+            const h = o.w * o.ratio;
+            return (
+              <g key={i} transform={`translate(${(o.x / 100) * vp.w} ${(o.y / 100) * vp.h})`}>
+                <g
+                  className="mn-intro__orn-g"
+                  style={{ "--r": `${o.r}deg`, "--d": `${o.d}ms`, "--fx": `${o.fx}px`, "--fy": `${o.fy}px` } as CSSProperties}
+                >
+                  <image href={`/ornaments/${o.src}.webp`} x={-o.w / 2} y={-h / 2} width={o.w} height={h} />
+                </g>
+              </g>
+            );
+          })}
+        </g>
+
+        {/* тонкая гжель-кобальтовая линия по движущемуся фронту прожига */}
+        <g className="mn-intro__edge-g" mask="url(#mn-line-mask)">
+          <rect x="0" y="0" width={vp.w} height={vp.h} fill="url(#mn-edge-grad)" />
+        </g>
       </svg>
 
-      {/* белый лист: лого + каракули НА листе — сгорают вместе с ним */}
-      <div className="mn-intro__paper">
-        <div className="mn-intro__grain" aria-hidden />
-        <div className="mn-intro__scatter" aria-hidden>
-          {INTRO_ORNAMENTS.map((o, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={i}
-              src={`/ornaments/${o.src}.webp`}
-              alt=""
-              className="mn-intro__orn"
-              style={{ "--x": o.x, "--y": o.y, "--w": o.w, "--r": `${o.r}deg`, "--d": `${o.d}ms`, "--fx": `${o.fx}px`, "--fy": `${o.fy}px` } as CSSProperties}
-            />
-          ))}
-        </div>
-        <div className="mn-intro__brand">
-          <span className="mn-intro__eyebrow">Раковарня · Москва</span>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="mn-intro__logo" src="/ornaments/logo-black.webp" alt="The Raki" />
-          <span className="mn-intro__sub">Карта раковарни</span>
-        </div>
+      {/* бренд-блок HTML поверх: тает СВОЕЙ анимацией до прихода центральной кляксы */}
+      <div className="mn-intro__brand">
+        <span className="mn-intro__eyebrow">Раковарня · Москва</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="mn-intro__logo" src="/ornaments/logo-black.webp" alt="The Raki" />
+        <span className="mn-intro__sub">Карта раковарни</span>
       </div>
-
-      {/* тонкая гжель-кобальтовая линия по фронту прожига */}
-      <div className="mn-intro__edge" aria-hidden />
     </div>
   );
 }

@@ -43,33 +43,20 @@ body:has(.mn) { background: #ffffff; }
   position: fixed; inset: 0; z-index: 100; overflow: hidden;
 }
 
-/* белый лист (маскируется кляксами-дырами); лого и каракули — НА листе, сгорают с ним */
-.mn-intro__paper {
-  position: absolute; inset: 0;
-  background: #ffffff;
-  -webkit-mask: url(#mn-paper-mask); mask: url(#mn-paper-mask);
-  -webkit-mask-mode: luminance; mask-mode: luminance;
-}
-.mn-intro__grain {
-  position: absolute; inset: 0; pointer-events: none; opacity: 0.05;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 140px 140px;
-}
+/* Сцена прожига — ОДИН inline-SVG (Safari/iOS не применяет CSS mask:url(#svgMask)
+   к HTML-слоям — маски живут ВНУТРИ svg, на его элементах работают везде). */
+.mn-intro__stage { position: absolute; inset: 0; }
 
-/* каракули ВЛЕТАЮТ из-за экрана с тех сторон, где стоят (--fx/--fy — вектор влёта),
-   и встают на места с мягким торможением — сцена собирается вокруг лого */
-.mn-intro__scatter { position: absolute; inset: 0; pointer-events: none; }
-.mn-intro__orn {
-  position: absolute;
-  left: calc(var(--x) * 1%); top: calc(var(--y) * 1%);
-  width: calc(var(--w) * 1px); height: auto;
-  transform: translate(calc(-50% + var(--fx)), calc(-50% + var(--fy)))
-             rotate(calc(var(--r) - 16deg)) scale(0.9);
-  opacity: 0; filter: saturate(0.96);
+/* каракули ВЛЕТАЮТ из-за экрана (--fx/--fy — вектор влёта, px): svg-группа
+   с bbox-центром в точке установки, поэтому все значения — чистые px/deg */
+.mn-intro__orn-g {
+  transform-box: fill-box; transform-origin: center;
+  transform: translate(var(--fx), var(--fy)) rotate(calc(var(--r) - 16deg)) scale(0.9);
+  opacity: 0;
   animation: mn-orn-in 0.7s cubic-bezier(0.16,1,0.3,1) var(--d) forwards;
 }
 @keyframes mn-orn-in {
-  to { opacity: 0.88; transform: translate(-50%, -50%) rotate(var(--r)) scale(1); }
+  to { opacity: 0.88; transform: translate(0, 0) rotate(var(--r)) scale(1); }
 }
 
 /* клякса: растёт РАДИУСОМ из своей точки; ease-in — волна, ускоряющаяся к финалу */
@@ -88,12 +75,8 @@ body:has(.mn) { background: #ffffff; }
 }
 @keyframes mn-linedie { to { opacity: 0; } }
 
-/* тонкая гжель-кобальтовая линия по фронту прожига */
-.mn-intro__edge {
-  position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(circle, #5b8fda 0%, #2f66c0 100%);
-  -webkit-mask: url(#mn-line-mask); mask: url(#mn-line-mask);
-  -webkit-mask-mode: luminance; mask-mode: luminance;
+/* тонкая гжель-кобальтовая линия по фронту прожига (группа внутри svg-сцены) */
+.mn-intro__edge-g {
   animation: mn-edge-out 3.35s linear both;
 }
 @keyframes mn-edge-out { 0%, 84% { opacity: 1; } 100% { opacity: 0; } }
@@ -147,8 +130,8 @@ body:has(.mn) { background: #ffffff; }
 .mn--introdone main { animation: none; filter: none; opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
-  .mn-intro__orn, .mn-intro__blot, .mn-intro__brand,
-  .mn-intro__eyebrow, .mn-intro__sub, .mn-intro__logo, .mn-intro__edge { animation: none; }
+  .mn-intro__orn-g, .mn-intro__blot, .mn-intro__brand,
+  .mn-intro__eyebrow, .mn-intro__sub, .mn-intro__logo, .mn-intro__edge-g { animation: none; }
   .mn main { animation: none; filter: none; opacity: 1; }
 }
 
