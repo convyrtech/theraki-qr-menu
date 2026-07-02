@@ -194,8 +194,11 @@ body:has(.mn) { background: #ffffff; }
 }
 .mn__ch-icon {
   display: block;
-  width: 100%;
-  height: 100%;
+  /* ЖЁСТКИЕ px, не проценты: height:100% внутри inline-grid НЕ ограничивал
+     портретные картинки — рак/мидия рисовались 72×~80 и вылезали из бокса
+     на подзаголовок (замер 03.07: img.bottom = box.bottom + 18px) */
+  width: 72px;
+  height: 60px;
   object-fit: contain;
   transform: scale(var(--icon-scale));
   transform-origin: center;
