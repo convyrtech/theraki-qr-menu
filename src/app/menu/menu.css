@@ -90,9 +90,12 @@ body:has(.mn) { background: #ffffff; }
   /* Пока дырки прожига малы — blur СТАТИЧНЫЙ (браузер кэширует отрисовку, кадры
      бесплатны); анимируется только в финальные 0.6с — «наводка на резкость»
      остаётся, а дорогих кадров с пересчётом blur втрое меньше (лаг Android). */
-  animation: mn-fade 1.5s ease-out 1.6s both, mn-sharpen 0.6s ease-out 2.5s both;
+  /* Вуаль ПЛОТНАЯ на всё время прожига: сквозь дыры видно «молочное» меню —
+     иначе каракули фонового паттерна меню читаются как «не сгоревшие» интро-
+     каракули. Резкость и яркость приходят в финальные 0.6с, когда лист догорел. */
+  animation: mn-fade 1.9s ease-in 1.5s both, mn-sharpen 0.6s ease-out 2.9s both;
 }
-@keyframes mn-fade { from { opacity: 0.55; } to { opacity: 1; } }
+@keyframes mn-fade { from { opacity: 0.42; } to { opacity: 1; } }
 @keyframes mn-sharpen { from { filter: blur(4px); } to { filter: blur(0); } }
 .mn--introdone main { animation: none; filter: none; opacity: 1; }
 

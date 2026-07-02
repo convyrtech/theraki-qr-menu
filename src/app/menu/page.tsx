@@ -418,36 +418,54 @@ function drawIntroFrame(
     ctx.drawImage(img, (-w / 2) * sc, (-h / 2) * sc, w * sc, h * sc);
     ctx.restore();
   });
-  // дыры прожига + кобальтовая кромка по фронту
+  // Дыры + кромка — ТРИ прохода (как в svg-версии, где cut-вычиталка стирала
+  // линии в пересечениях): 1) все дыры; 2) все линии фронта; 3) «выжженные
+  // ядра» (0.95) стирают линии там, где они легли поверх чужих дыр — иначе
+  // кобальтовые линии плавают через пустоту пересекающихся пятен.
   const t = tMs / 1000;
+  type Live = { f: InkFocus; path: Path2D; scale: number; lineAlpha: number };
+  const live: Live[] = [];
   for (const f of INK_ALL) {
     const delay = INK_START + f.d * INK_STAGGER;
     const raw = (t - delay) / f.dur;
     if (raw <= 0) continue;
     const e = easeBlob(Math.min(1, raw));
     if (e <= 0.001) continue;
-    const path = paths[f.s + String((f.x + f.y) % 3)];
-    const scale = (f.r / 100) * 1.55 * e * su;
-    ctx.save();
-    ctx.translate(f.x * sx, f.y * sy);
-    ctx.rotate((f.rot * Math.PI) / 180);
-    ctx.scale(scale, scale);
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fill(path);
-    // фронт: линия живёт пока идёт рост и гаснет за 0.35с после dur*0.85
     const dieStart = delay + f.dur * 0.85;
-    const lineAlpha = t < dieStart ? 1 : Math.max(0, 1 - (t - dieStart) / 0.35);
-    if (lineAlpha > 0.01) {
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = lineAlpha;
-      ctx.strokeStyle = "#2f66c0";
-      ctx.lineWidth = 1.3 / scale; // постоянная толщина на экране
-      ctx.scale(0.992, 0.992);
-      ctx.stroke(path);
-    }
+    live.push({
+      f,
+      path: paths[f.s + String((f.x + f.y) % 3)],
+      scale: (f.r / 100) * 1.55 * e * su,
+      lineAlpha: t < dieStart ? 1 : Math.max(0, 1 - (t - dieStart) / 0.35),
+    });
+  }
+  const inBlob = (l: Live, factor: number, draw: () => void) => {
+    ctx.save();
+    ctx.translate(l.f.x * sx, l.f.y * sy);
+    ctx.rotate((l.f.rot * Math.PI) / 180);
+    ctx.scale(l.scale * factor, l.scale * factor);
+    draw();
     ctx.restore();
+  };
+  // 1: дыры
+  ctx.globalCompositeOperation = "destination-out";
+  for (const l of live) inBlob(l, 1, () => ctx.fill(l.path));
+  // 2: линии фронта (гаснут за 0.35с после dur*0.85)
+  ctx.globalCompositeOperation = "source-over";
+  for (const l of live) {
+    if (l.lineAlpha <= 0.01) continue;
+    inBlob(l, 0.992, () => {
+      ctx.globalAlpha = l.lineAlpha;
+      ctx.strokeStyle = "#2f66c0";
+      ctx.lineWidth = 1.3 / (l.scale * 0.992); // постоянная толщина на экране
+      ctx.stroke(l.path);
+    });
     ctx.globalAlpha = 1;
   }
+  // 3: ядра стирают линии в пересечениях (для бумаги — no-op, там уже дыра)
+  ctx.globalCompositeOperation = "destination-out";
+  for (const l of live) inBlob(l, 0.95, () => ctx.fill(l.path));
+  ctx.globalCompositeOperation = "source-over";
 }
 
 function MenuIntro({ onDone }: { onDone: () => void }) {
