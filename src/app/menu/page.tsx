@@ -498,6 +498,7 @@ function drawIntroFrame(
 
 function MenuIntro({ onDone }: { onDone: () => void }) {
   const [done, setDone] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -507,7 +508,14 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
 
     const canvas = canvasRef.current;
     if (!canvas) { finish(); return; }
-    const vp = { w: window.innerWidth, h: window.innerHeight };
+    // Размер — из фактического бокса fixed-контейнера (iOS: innerHeight в момент
+    // гидрации может не совпадать с реальной высотой видимой области)
+    const box = rootRef.current?.getBoundingClientRect();
+    const vp = { w: Math.ceil(box?.width || window.innerWidth), h: Math.ceil(box?.height || window.innerHeight) };
+    // Синхронизация таймлайнов: CSS-анимации бренда стартуют ЭТИМ классом,
+    // одновременно с t0 канваса (SSR-часы на медленной гидрации убегали вперёд:
+    // лого таяло ДО начала прожига, а сквозь пустой канвас мелькало меню)
+    rootRef.current?.classList.add("is-live");
     const dpr = Math.min(window.devicePixelRatio || 1, 2); // ретина ×3 не нужна прожигу
     canvas.width = Math.round(vp.w * dpr);
     canvas.height = Math.round(vp.h * dpr);
@@ -570,7 +578,7 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
   if (done) return null;
 
   return (
-    <div className="mn-intro" role="presentation" onPointerDown={skip} onWheel={skip} onTouchStart={skip}>
+    <div className="mn-intro" role="presentation" ref={rootRef} onPointerDown={skip} onWheel={skip} onTouchStart={skip}>
       {/* GPU-канвас: лист+каракули, дыры = destination-out, кромка = stroke */}
       <canvas ref={canvasRef} className="mn-intro__canvas" aria-hidden />
 

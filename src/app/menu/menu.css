@@ -46,7 +46,11 @@ body:has(.mn) { background: #ffffff; }
 /* Сцена прожига — GPU-канвас: WebKit рисует SVG-маски без ускорения (лагало
    на iPhone), canvas destination-out композитинг ускорен на всех платформах.
    Вся хореография (влёт каракуль, рост клякс, кромка) — в drawIntroFrame. */
-.mn-intro__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* До гидрации React канвас пуст и прозрачен — CSS-фон держит белый лист,
+   чтобы сквозь него не просвечивало меню (на слабых телефонах гидрация 1-2с).
+   JS снимает фон первым же кадром — дыры прожига честно показывают меню. */
+.mn-intro__canvas { position: absolute; inset: 0; width: 100%; height: 100%; background: #ffffff; }
+.mn-intro.is-live .mn-intro__canvas { background: transparent; }
 
 /* бренд-блок: лого живёт до конца и растворяется «мокрыми чернилами»
    за миг до прихода центральной кляксы */
@@ -54,6 +58,10 @@ body:has(.mn) { background: #ffffff; }
   position: absolute; inset: 0; z-index: 2;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; padding: 0 28px; color: #13202a;
+}
+/* таймлайны бренда привязаны к .is-live — синхронно со стартом канваса,
+   а не с SSR-отрисовкой (на слабом телефоне между ними 1-2с гидрации) */
+.mn-intro.is-live .mn-intro__brand {
   animation: mn-brand-out 0.5s cubic-bezier(0.4,0,0.8,0.4) 1.90s both;
 }
 /* без blur: анимированный filter = перерисовка слоя каждый кадр (лагало на среднем Android);
@@ -64,7 +72,6 @@ body:has(.mn) { background: #ffffff; }
 .mn-intro__logo {
   width: min(72vw, 300px); height: auto; margin-bottom: 14px;
   opacity: 0; transform: translateY(10px) scale(0.98); filter: blur(4px);
-  animation: mn-ink-in 1s cubic-bezier(0.22,1,0.36,1) 0.22s forwards;
 }
 /* Надписи интро (кроме лого) — «синие с контуром» (Наталья): кобальт + тонкая
    тёмная тень-подложка, как вывесочный леттеринг — цвет отсекается от белого чётко. */
@@ -72,7 +79,6 @@ body:has(.mn) { background: #ffffff; }
   font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase; color: #2f66c0;
   text-shadow: 0.5px 1px 0 rgba(20, 32, 44, 0.5);
   margin-bottom: 22px; opacity: 0; filter: blur(6px);
-  animation: mn-ink-in 0.8s cubic-bezier(0.22,1,0.36,1) 0.12s forwards;
 }
 .mn-intro__sub {
   margin-top: 4px;
@@ -80,7 +86,6 @@ body:has(.mn) { background: #ffffff; }
   font-size: clamp(19px, 5.6vw, 25px); letter-spacing: 0.02em; color: #2f66c0;
   text-shadow: 0.5px 1.2px 0 rgba(20, 32, 44, 0.5);
   opacity: 0; filter: blur(8px);
-  animation: mn-ink-in 1s cubic-bezier(0.22,1,0.36,1) 0.38s forwards;
 }
 @keyframes mn-ink-in { to { opacity: 1; filter: blur(0); transform: none; } }
 
@@ -829,3 +834,9 @@ body:has(.mn) { background: #ffffff; }
 @media (prefers-reduced-motion: reduce) {
   .mn__top, .mn__brand, .mn__top-sub, .mn__sheet, .mn__cat-sheet, .mn__cat-panel, .cat--overlay { transition: none; animation: none; }
 }
+
+.mn-intro.is-live .mn-intro__logo { animation: mn-ink-in 1s cubic-bezier(0.22,1,0.36,1) 0.22s forwards; }
+
+.mn-intro.is-live .mn-intro__eyebrow { animation: mn-ink-in 0.8s cubic-bezier(0.22,1,0.36,1) 0.12s forwards; }
+
+.mn-intro.is-live .mn-intro__sub { animation: mn-ink-in 1s cubic-bezier(0.22,1,0.36,1) 0.38s forwards; }
