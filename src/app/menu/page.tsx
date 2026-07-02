@@ -400,18 +400,21 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
     <div className="mn-intro" role="presentation" onPointerDown={skip} onWheel={skip} onTouchStart={skip}>
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
         <defs>
-          {/* форма прожига: лёгкое слияние соседей + крупно-лопастное искажение края */}
-          <filter id="mn-goo" x="-60%" y="-60%" width="220%" height="220%" colorInterpolationFilters="sRGB">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
-            <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" result="goo" />
-            <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="2" seed="7" result="noise" />
-            <feDisplacementMap in="goo" in2="noise" scale="30" xChannelSelector="R" yChannelSelector="G" />
+          {/* Форма прожига. ПЕРФ (лаг на среднем Android): фильтр пересчитывается
+              каждый кадр на всю площадь региона × DPR — поэтому:
+              — регион 220%→112% (дисплейсменту хватает запаса ~15px, было 5 площадей экрана);
+              — гуи-стадия (blur 5px + colormatrix на весь экран/кадр) удалена: рваные
+                края дают turbulence+displacement, слияние соседей = простое объединение,
+                на скорости прожига неотличимо;
+              — октавы шума 2→1 (вдвое дешевле, деталь кромки почти та же). */}
+          <filter id="mn-goo" x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="1" seed="7" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="30" xChannelSelector="R" yChannelSelector="G" />
           </filter>
-          {/* линия: то же поле шума (кромка следует за краем дыры), без слипания */}
-          <filter id="mn-gooline" x="-60%" y="-60%" width="220%" height="220%" colorInterpolationFilters="sRGB">
-            <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="2" seed="7" result="noise" />
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="30" xChannelSelector="R" yChannelSelector="G" result="disp" />
-            <feGaussianBlur in="disp" stdDeviation="0.4" />
+          {/* линия: то же поле шума (кромка следует за краем дыры) */}
+          <filter id="mn-gooline" x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="1" seed="7" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="30" xChannelSelector="R" yChannelSelector="G" />
           </filter>
           <mask id="mn-paper-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={vp.w} height={vp.h}>
             <rect x="0" y="0" width={vp.w} height={vp.h} fill="#fff" />
