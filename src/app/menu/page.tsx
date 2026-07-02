@@ -232,7 +232,7 @@ const DISH_PHOTO: Record<string, string> = {
   "Фетучини с раковыми шейками и молодым шпинатом": "/images/menu-main-fettuccine.webp",
   "Картофель фри": "/images/menu-garnish-fries.webp",
   "Батат фри": "/images/menu-garnish-sweet-potato.webp",
-  "Десерт THE RAKI": "/images/menu-dessert-the-raki.webp",
+  "Десерт THE RAKI": "/images/menu-dessert-theraki-v2.webp",
   "Малина или вишня в молочном шоколаде": "/images/menu-dessert-raspberry-chocolate.webp",
 };
 
