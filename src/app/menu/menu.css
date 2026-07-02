@@ -200,19 +200,23 @@ body:has(.mn) { background: #ffffff; }
   transform: scale(var(--icon-scale));
   transform-origin: center;
 }
-.mn__ch-iconbox--raki { --icon-scale: 1.27; }
-.mn__ch-iconbox--sauces { --icon-scale: 1.12; }
-.mn__ch-iconbox--crab { --icon-scale: 1.10; }
-.mn__ch-iconbox--mains { --icon-scale: 1.09; }
-.mn__ch-iconbox--shrimp { --icon-scale: 1.06; }
-.mn__ch-iconbox--mussels,
+/* Keyline-нормализация (замер «на глаз» владельца 03.07: краб/раки гиганты,
+   тарелки мелкота): чернильный bbox каждого значка вписан в ОБЩИЙ бокс 78×60.
+   Не масса, а габарит — глаз сравнивает именно его. Пересчёт скриптом из
+   фактических bbox непрозрачных пикселей; не подгонять на глаз. */
+.mn__ch-iconbox--crab,
+.mn__ch-iconbox--raki,
+.mn__ch-iconbox--shrimp,
+.mn__ch-iconbox--mussels { --icon-scale: 1.0; }
 .mn__ch-iconbox--garnish { --icon-scale: 1.01; }
-.mn__ch-iconbox--hot { --icon-scale: 1.0; }
-.mn__ch-iconbox--desserts { --icon-scale: 0.92; }
+.mn__ch-iconbox--soups { --icon-scale: 1.05; }
+.mn__ch-iconbox--vongole { --icon-scale: 1.06; }
 .mn__ch-iconbox--starters,
-.mn__ch-iconbox--salads { --icon-scale: 0.90; }
-.mn__ch-iconbox--vongole,
-.mn__ch-iconbox--soups { --icon-scale: 0.88; }
+.mn__ch-iconbox--salads,
+.mn__ch-iconbox--hot,
+.mn__ch-iconbox--mains,
+.mn__ch-iconbox--sauces,
+.mn__ch-iconbox--desserts { --icon-scale: 1.10; }
 .mn__cards { position: relative; }
 .mn__ch-origin {
   font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
