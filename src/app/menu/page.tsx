@@ -265,6 +265,7 @@ function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => v
               <span className="mn__raki-price">{fmtP(s.price / 2) + " ₽"}</span>
             </div>
           ))}
+          <div className="mn__raki-rule">минимальный заказ 1 кг · шаг 0,5 кг</div>
         </div>
         <div className="mn__prep-head mn__prep-head--detail">
           <span className="mn__prep-title">{prep.recipesLabel}</span>
