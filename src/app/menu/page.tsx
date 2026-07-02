@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { chapters, rakiChapter, formatNumber, type MenuEntry, type RakiPreparation } from "@/data/menu";
 import "./menu.css";
 
@@ -355,43 +355,146 @@ const INTRO_ORNAMENTS: { src: string; x: number; y: number; w: number; ratio: nu
 // программно из 11 вырезок с wrap-around швом) — как фирменная обклейка машин.
 // Контент живёт на белых фарфоровых панелях поверх — логика той же обклейки.
 
-// Один элемент-клякса для маски: растёт из своей точки; в режиме line дополнительно
-// гаснет (вторая анимация), едва фронт прошёл — статичных линий не остаётся.
-function InkBlob({ f, mode }: { f: InkFocus; mode: "fill" | "cut" | "line" }) {
-  const delay = INK_START + f.d * INK_STAGGER;
-  const factor = mode === "cut" ? 0.95 : mode === "line" ? 0.992 : 1;
-  const style: CSSProperties =
-    mode === "line"
-      ? { animationDelay: `${delay.toFixed(3)}s, ${(delay + f.dur * 0.85).toFixed(3)}s`, animationDuration: `${f.dur}s, 0.35s` }
-      : { animationDelay: `${delay.toFixed(3)}s`, animationDuration: `${f.dur}s` };
-  return (
-    <g transform={`translate(${f.x} ${f.y}) rotate(${f.rot}) scale(${((f.r / 100) * factor).toFixed(4)})`}>
-      <path
-        className={"mn-intro__blot" + (mode === "line" ? " mn-intro__blot--line" : "")}
-        d={INK_SHAPES[f.s + String((f.x + f.y) % 3)]}
-        {...(mode === "line"
-          ? { fill: "none", stroke: "#fff", strokeWidth: 1.6, vectorEffect: "non-scaling-stroke" as const }
-          : { fill: "#000" })}
-        style={style}
-      />
-    </g>
-  );
+// ---- Canvas-прожиг. История движков: CSS mask(url #svg) — Chrome-only;
+// inline-SVG маски — работают в Safari, но WebKit рисует их БЕЗ GPU (лагало
+// на iPhone сильнее Android). Canvas destination-out композитинг ускорен
+// на всех платформах — рисуем лист+каракули и пробиваем дыры готовыми
+// Path2D (те же запечённые контуры), кромка — обводка тех же путей.
+
+// cubic-bezier как в CSS (Ньютон + бинарный поиск), для канвас-таймлайна
+function cubicBezier(p1x: number, p1y: number, p2x: number, p2y: number) {
+  const ax = 3 * p1x - 3 * p2x + 1, bx = 3 * p2x - 6 * p1x, cx = 3 * p1x;
+  const ay = 3 * p1y - 3 * p2y + 1, by = 3 * p2y - 6 * p1y, cy = 3 * p1y;
+  const sampleX = (t: number) => ((ax * t + bx) * t + cx) * t;
+  const sampleY = (t: number) => ((ay * t + by) * t + cy) * t;
+  return (x: number) => {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    let t = x;
+    for (let i = 0; i < 5; i++) {
+      const dx = sampleX(t) - x;
+      const d = (3 * ax * t + 2 * bx) * t + cx;
+      if (Math.abs(d) < 1e-6) break;
+      t -= dx / d;
+    }
+    t = Math.min(1, Math.max(0, t));
+    return sampleY(t);
+  };
+}
+const easeBlob = cubicBezier(0.42, 0, 0.75, 0.4);   // рост кляксы (ускоряется)
+const easeOrn = cubicBezier(0.16, 1, 0.3, 1);        // влёт каракули (торможение)
+
+function drawIntroFrame(
+  ctx: CanvasRenderingContext2D,
+  tMs: number,
+  vp: { w: number; h: number },
+  imgs: (HTMLImageElement | null)[],
+  grain: CanvasPattern | null,
+  paths: Record<string, Path2D>,
+) {
+  const sx = vp.w / 390, sy = vp.h / 844, su = (sx + sy) / 2;
+  // лист
+  ctx.globalCompositeOperation = "source-over";
+  ctx.clearRect(0, 0, vp.w, vp.h);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, vp.w, vp.h);
+  if (grain) {
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = grain;
+    ctx.fillRect(0, 0, vp.w, vp.h);
+    ctx.globalAlpha = 1;
+  }
+  // каракули: влёт из-за экрана → на места
+  INTRO_ORNAMENTS.forEach((o, i) => {
+    const img = imgs[i];
+    if (!img) return;
+    const e = easeOrn(Math.min(1, Math.max(0, (tMs - o.d) / 700)));
+    if (e <= 0) return;
+    const w = o.w * su, h = w * o.ratio;
+    ctx.save();
+    ctx.globalAlpha = 0.88 * e;
+    ctx.translate((o.x / 100) * vp.w + o.fx * (1 - e), (o.y / 100) * vp.h + o.fy * (1 - e));
+    ctx.rotate(((o.r - 16 * (1 - e)) * Math.PI) / 180);
+    const sc = 0.9 + 0.1 * e;
+    ctx.drawImage(img, (-w / 2) * sc, (-h / 2) * sc, w * sc, h * sc);
+    ctx.restore();
+  });
+  // дыры прожига + кобальтовая кромка по фронту
+  const t = tMs / 1000;
+  for (const f of INK_ALL) {
+    const delay = INK_START + f.d * INK_STAGGER;
+    const raw = (t - delay) / f.dur;
+    if (raw <= 0) continue;
+    const e = easeBlob(Math.min(1, raw));
+    if (e <= 0.001) continue;
+    const path = paths[f.s + String((f.x + f.y) % 3)];
+    const scale = (f.r / 100) * 1.55 * e * su;
+    ctx.save();
+    ctx.translate(f.x * sx, f.y * sy);
+    ctx.rotate((f.rot * Math.PI) / 180);
+    ctx.scale(scale, scale);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fill(path);
+    // фронт: линия живёт пока идёт рост и гаснет за 0.35с после dur*0.85
+    const dieStart = delay + f.dur * 0.85;
+    const lineAlpha = t < dieStart ? 1 : Math.max(0, 1 - (t - dieStart) / 0.35);
+    if (lineAlpha > 0.01) {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = lineAlpha;
+      ctx.strokeStyle = "#2f66c0";
+      ctx.lineWidth = 1.3 / scale; // постоянная толщина на экране
+      ctx.scale(0.992, 0.992);
+      ctx.stroke(path);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
 }
 
 function MenuIntro({ onDone }: { onDone: () => void }) {
   const [done, setDone] = useState(false);
-  // дизайн-пространство клякс 390×844 → масштабируем под реальный вьюпорт.
-  // Первый рендер ВСЕГДА 390×844 (SSR = клиент, иначе hydration mismatch);
-  // реальный размер подставляется в useEffect до старта первого поджига (0.75s).
-  const [vp, setVp] = useState({ w: 390, h: 844 });
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    setVp({ w: window.innerWidth, h: window.innerHeight });
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const finish = () => { setDone(true); onDone(); };
     if (reduce) { finish(); return; }
-    const t = window.setTimeout(finish, INTRO_TOTAL_MS);
-    return () => window.clearTimeout(t);
+
+    const canvas = canvasRef.current;
+    if (!canvas) { finish(); return; }
+    const vp = { w: window.innerWidth, h: window.innerHeight };
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); // ретина ×3 не нужна прожигу
+    canvas.width = Math.round(vp.w * dpr);
+    canvas.height = Math.round(vp.h * dpr);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { finish(); return; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // готовые Path2D из запечённых контуров — парсинг один раз
+    const paths: Record<string, Path2D> = {};
+    for (const k of Object.keys(INK_SHAPES)) paths[k] = new Path2D(INK_SHAPES[k]);
+
+    // ассеты: каракули + зерно бумаги (все уже в кэше — их грузит само меню)
+    const imgs: (HTMLImageElement | null)[] = INTRO_ORNAMENTS.map(() => null);
+    INTRO_ORNAMENTS.forEach((o, i) => {
+      const im = new Image();
+      im.onload = () => { imgs[i] = im; };
+      im.src = `/ornaments/${o.src}.webp`;
+    });
+    let grain: CanvasPattern | null = null;
+    const g = new Image();
+    g.onload = () => { grain = ctx.createPattern(g, "repeat"); };
+    g.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E";
+
+    let raf = 0;
+    const t0 = performance.now();
+    const loop = (now: number) => {
+      const tMs = now - t0;
+      drawIntroFrame(ctx, tMs, vp, imgs, grain, paths);
+      if (tMs < INTRO_TOTAL_MS) raf = window.requestAnimationFrame(loop);
+      else finish();
+    };
+    raf = window.requestAnimationFrame(loop);
+    return () => window.cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -404,67 +507,10 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
 
   if (done) return null;
 
-  const sx = (vp.w / 390).toFixed(4);
-  const sy = (vp.h / 844).toFixed(4);
-  const scale = `scale(${sx} ${sy})`;
-
   return (
     <div className="mn-intro" role="presentation" onPointerDown={skip} onWheel={skip} onTouchStart={skip}>
-      {/* ВСЯ сцена прожига — ОДИН inline-SVG: маски применяются к SVG-элементам
-          (Safari/iOS не поддерживает CSS mask:url(#svgMask) на HTML-слоях).
-          Лист+зерно+каракули — в маскируемой группе (сгорают вместе),
-          кобальтовая кромка — вторая группа с line-маской и SVG-градиентом. */}
-      <svg className="mn-intro__stage" width={vp.w} height={vp.h} viewBox={`0 0 ${vp.w} ${vp.h}`} aria-hidden>
-        <defs>
-          <mask id="mn-paper-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={vp.w} height={vp.h}>
-            <rect x="0" y="0" width={vp.w} height={vp.h} fill="#fff" />
-            <g transform={scale}>
-              {INK_ALL.map((f, i) => <InkBlob key={i} f={f} mode="fill" />)}
-            </g>
-          </mask>
-          {/* линия = обводка МИНУС выгоревшее ядро → остаётся только фронт прожига */}
-          <mask id="mn-line-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={vp.w} height={vp.h}>
-            <rect x="0" y="0" width={vp.w} height={vp.h} fill="#000" />
-            <g transform={scale}>
-              {INK_ALL.map((f, i) => <InkBlob key={i} f={f} mode="line" />)}
-            </g>
-            <g transform={scale}>
-              {INK_ALL.map((f, i) => <InkBlob key={i} f={f} mode="cut" />)}
-            </g>
-          </mask>
-          <radialGradient id="mn-edge-grad" cx="50%" cy="50%" r="72%">
-            <stop offset="0%" stopColor="#5b8fda" />
-            <stop offset="100%" stopColor="#2f66c0" />
-          </radialGradient>
-          <pattern id="mn-grain" patternUnits="userSpaceOnUse" width="140" height="140">
-            <image width="140" height="140" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E" />
-          </pattern>
-        </defs>
-
-        {/* белый лист + зерно + каракули: сгорают одной группой */}
-        <g mask="url(#mn-paper-mask)">
-          <rect x="0" y="0" width={vp.w} height={vp.h} fill="#ffffff" />
-          <rect x="0" y="0" width={vp.w} height={vp.h} fill="url(#mn-grain)" opacity="0.05" />
-          {INTRO_ORNAMENTS.map((o, i) => {
-            const h = o.w * o.ratio;
-            return (
-              <g key={i} transform={`translate(${(o.x / 100) * vp.w} ${(o.y / 100) * vp.h})`}>
-                <g
-                  className="mn-intro__orn-g"
-                  style={{ "--r": `${o.r}deg`, "--d": `${o.d}ms`, "--fx": `${o.fx}px`, "--fy": `${o.fy}px` } as CSSProperties}
-                >
-                  <image href={`/ornaments/${o.src}.webp`} x={-o.w / 2} y={-h / 2} width={o.w} height={h} />
-                </g>
-              </g>
-            );
-          })}
-        </g>
-
-        {/* тонкая гжель-кобальтовая линия по движущемуся фронту прожига */}
-        <g className="mn-intro__edge-g" mask="url(#mn-line-mask)">
-          <rect x="0" y="0" width={vp.w} height={vp.h} fill="url(#mn-edge-grad)" />
-        </g>
-      </svg>
+      {/* GPU-канвас: лист+каракули, дыры = destination-out, кромка = stroke */}
+      <canvas ref={canvasRef} className="mn-intro__canvas" aria-hidden />
 
       {/* бренд-блок HTML поверх: тает СВОЕЙ анимацией до прихода центральной кляксы */}
       <div className="mn-intro__brand">
