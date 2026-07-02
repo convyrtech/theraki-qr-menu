@@ -59,16 +59,16 @@ body:has(.mn) { background: #ffffff; }
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; padding: 0 28px; color: #13202a;
 }
-/* таймлайны бренда привязаны к .is-live — синхронно со стартом канваса,
-   а не с SSR-отрисовкой (на слабом телефоне между ними 1-2с гидрации) */
-.mn-intro.is-live .mn-intro__brand {
-  animation: mn-brand-out 0.5s cubic-bezier(0.4,0,0.8,0.4) 1.90s both;
+/* растворение бренда запускает КАНВАС-ЦИКЛ классом is-out (одно время
+   с прожигом даже на джанке; CSS-delay жил бы по настенным часам) */
+.mn-intro__brand {
+  transition: opacity 0.5s cubic-bezier(0.4,0,0.8,0.4), transform 0.5s cubic-bezier(0.4,0,0.8,0.4);
+}
+.mn-intro.is-out .mn-intro__brand {
+  opacity: 0; transform: translateY(-10px) scale(0.985);
 }
 /* без blur: анимированный filter = перерисовка слоя каждый кадр (лагало на среднем Android);
    opacity+transform композитятся на GPU бесплатно, «таяние» читается так же */
-@keyframes mn-brand-out {
-  to { opacity: 0; transform: translateY(-10px) scale(0.985); }
-}
 .mn-intro__logo {
   width: min(72vw, 300px); height: auto; margin-bottom: 14px;
   opacity: 0; transform: translateY(10px) scale(0.98); filter: blur(4px);
