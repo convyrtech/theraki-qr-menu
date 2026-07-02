@@ -69,7 +69,7 @@ const LABEL: Record<string, string> = {
   crab: "Камчатский краб",
   raki: "Раки",
   starters: "Изысканные закуски",
-  shrimp: "Креветки магаданская / медведка",
+  shrimp: "Креветки: магаданская и медведка",
   salads: "Авторские салаты",
   hot: "Горячие акценты",
   soups: "Супы",
@@ -95,6 +95,35 @@ const typo = (s: string) =>
     .replace(/\//g, "/⁠")
     .replace(/(^|[\s(«])(в|во|на|с|со|к|ко|и|а|о|у|из|по|за|от|до|для|при|под|над|не)\s/gi, "$1$2 ")
     .replace(/(\p{L})-(?=\p{L})/gu, "$1‑");
+// Карточка показывает ПЕРВОЕ предложение описания, полное — в раскрытии
+// (решение владельца). Контент не режется — только рендер карточки.
+const firstSentence = (s: string) => {
+  const m = s.match(/^[^.!?]*[.!?]/);
+  return m && m[0].length < s.length ? m[0] : s;
+};
+
+// «Соусы на выбор: A · B · C.» — рендерим таблетками, как рецепты раков
+// (просьба владельца); «(острый)» превращается в чили-метку.
+function SauceChips({ note }: { note: string }) {
+  const m = note.match(/^Соусы на выбор:\s*(.+?)\.?$/);
+  if (!m) return null;
+  return (
+    <div className="mn__recipes mn__recipes--card">
+      {m[1].split("·").map((raw) => {
+        const spicy = /остр/i.test(raw);
+        const label = raw.replace(/\s*\(остр\w*\)/i, "").trim();
+        return (
+          <span className={"mn__recipe" + (spicy ? " is-spicy" : "")} key={label}>
+            {label}
+            {spicy ? <span className="mn__mark" title="острый">{ChiliIcon}</span> : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+const isSauceNote = (s: string) => /^Соусы на выбор:/.test(s);
+
 // Разрядка тысяч НЕРАЗРЫВНЫМ пробелом: узкий U+202F из formatNumber на мелких
 // кеглях читается «слитно» («1350 ₽») — замечание судьи-типографа.
 const fmtP = (n: number) => formatNumber(n).replace(/ /g, " ");
@@ -103,7 +132,7 @@ const fmtP = (n: number) => formatNumber(n).replace(/ /g, " ");
 const NAV_LABEL: Record<string, string> = {
   crab: "Краб", raki: "Раки", starters: "Закуски", shrimp: "Креветки",
   salads: "Салаты", hot: "Горячее", soups: "Супы", mussels: "Мидии",
-  mains: "Основные", garnish: "Гарниры", vongole: "Вонголе", sauces: "Соусы",
+  mains: "Главный курс", garnish: "Гарниры", vongole: "Вонголе", sauces: "Соусы",
   desserts: "Десерты", drinks: "Напитки",
 };
 
@@ -154,6 +183,7 @@ function drinkLogo(entry: MenuEntry): { kind: string; src: string } | null {
   if (n.includes("кока")) return { kind: "cola", src: "/images/drink-logos/cola.webp" };
   if (n.includes("фанта")) return { kind: "fanta", src: "/images/drink-logos/fanta.webp" };
   if (n.includes("yoga")) return { kind: "yoga", src: "/images/drink-logos/yoga.webp" };
+  if (n.includes("квас")) return { kind: "vyatsky", src: "/images/drink-logos/vyatsky.webp" };
   return null;
 }
 
@@ -185,6 +215,7 @@ const DISH_PHOTO: Record<string, string> = {
   "Салат с ростбифом из мраморной говядины и вялеными томатами": "/images/menu-salad-roastbeef.webp",
   "Салат с хрустящими баклажанами и сочными томатами": "/images/menu-salad-eggplant.webp",
   "Классический греческий салат": "/images/menu-salad-greek.webp",
+  "Лангустины в цитрусово-сливочном масле": "/images/menu-shrimp-hot-asian.webp",
   "Гурмэ хот-дог с крабом и авокадо": "/images/menu-hot-hotdog.webp",
   "Фиш-энд-краб": "/images/menu-hot-fishcrab.webp",
   "Куриные крылья с соусом на выбор": "/images/menu-hot-wings.webp",
@@ -265,7 +296,6 @@ function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => v
               <span className="mn__raki-price">{fmtP(s.price / 2) + " ₽"}</span>
             </div>
           ))}
-          <div className="mn__raki-rule">минимальный заказ 1 кг · шаг 0,5 кг</div>
         </div>
         <div className="mn__prep-head mn__prep-head--detail">
           <span className="mn__prep-title">{prep.recipesLabel}</span>
@@ -796,7 +826,7 @@ export default function Menu() {
                         </span>
                         <span className="mn__row-price">
                           {fmtP(e.price) + " ₽"}
-                          {e.unit ? <i className="mn__row-unit">{e.unit}</i> : null}
+                          {e.unit ? <i className="mn__row-unit">{e.unit + (e.abv ? " · " + e.abv : "")}</i> : null}
                         </span>
                         {e.note ? <span className="mn__row-note">{typo(e.note)}</span> : null}
                         {e.variants?.length ? (
@@ -838,7 +868,11 @@ export default function Menu() {
                       </h3>
                     <span className="mn__card-price">{fmtP(e.price) + " ₽" + (e.unit === "кг" ? " / кг" : "")}</span>
                       {e.unit && e.unit !== "кг" ? <span className="mn__card-meta">{e.unit}</span> : null}
-                      {e.note ? <p className="mn__card-note">{typo(e.note)}</p> : null}
+                      {e.note ? (
+                        isSauceNote(e.note)
+                          ? <SauceChips note={e.note} />
+                          : <p className="mn__card-note">{typo(firstSentence(e.note))}</p>
+                      ) : null}
                     </div>
                   </button>
                   </Fragment>
@@ -881,7 +915,11 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
           {typo(entry.name)}
           {entry.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
         </h3>
-        {entry.note ? <p className="mn__detail-desc">{typo(entry.note)}</p> : null}
+        {entry.note ? (
+          isSauceNote(entry.note)
+            ? <SauceChips note={entry.note} />
+            : <p className="mn__detail-desc">{typo(entry.note)}</p>
+        ) : null}
         <div className="mn__detail-foot">
           <span className="mn__detail-price">{fmtP(entry.price) + " ₽"}</span>
           {entry.unit ? <span className="mn__detail-unit">за {entry.unit}</span> : null}

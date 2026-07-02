@@ -391,13 +391,6 @@ body:has(.mn) { background: #ffffff; }
 /* -------- РАКИ: доска размеров + рецепты -------- */
 .mn__raki-board { margin-top: 6px; }
 /* шапка-колонки — «цена за кг» один раз вместо повтора в каждой строке */
-/* правило веса под доской — снимает спор «полкило за 1950 — это порция?» */
-.mn__raki-rule {
-  grid-column: 1 / -1; margin-top: 10px;
-  font-family: var(--font-mono, monospace); font-size: 10px;
-  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(19,32,42,0.62);
-}
-
 .mn__raki-head {
   display: grid; grid-template-columns: minmax(44px, max-content) minmax(56px, 1fr) auto auto; gap: 10px;
   padding-bottom: 8px; margin-bottom: 2px;
@@ -433,6 +426,9 @@ body:has(.mn) { background: #ffffff; }
 .mn__prep-head--detail { margin-top: 24px; }
 .mn__prep-title { font-family: "Fraunces", "Cormorant Garamond", serif; font-size: 21px; color: #13202a; }
 .mn__prep-label { font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #2f66c0; }
+/* чипы соусов на карточке/в детали — та же пластика, что рецепты раков */
+.mn__recipes--card { margin-top: 10px; }
+
 .mn__recipes { display: flex; flex-wrap: wrap; gap: 8px; }
 .mn__recipe {
   display: inline-flex; align-items: center; gap: 7px;
