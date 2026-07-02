@@ -225,7 +225,7 @@ const DISH_PHOTO: Record<string, string> = {
   "Португальский суп с раковыми шейками": "/images/menu-soup-port.webp",
   "Домашняя куриная лапша": "/images/menu-soup-chicken-noodle.webp",
   "Том-ям с раковыми шейками": "/images/menu-soup-tomyam.webp",
-  "Мидии в соусе": "/images/menu-mussels-tomyam.webp",
+  "Мидии в соусе": "/images/menu-mussels-tomyam-white.webp",
   "Вонголе в соусе": "/images/menu-vongole-arrabiata.webp",
   "Авторская паста с камчатским крабом и нори в кокосовом соусе": "/images/menu-main-crab-pasta.webp",
   "Бифштекс под соусом из раковых шеек": "/images/menu-main-beefsteak.webp",
@@ -233,7 +233,8 @@ const DISH_PHOTO: Record<string, string> = {
   "Картофель фри": "/images/menu-garnish-fries.webp",
   "Батат фри": "/images/menu-garnish-sweet-potato.webp",
   "Десерт THE RAKI": "/images/menu-dessert-theraki-v2.webp",
-  "Малина или вишня в молочном шоколаде": "/images/menu-dessert-raspberry-chocolate.webp",
+  "Малина в молочном шоколаде": "/images/menu-dessert-raspberry-chocolate.webp",
+  "Вишня в молочном шоколаде": "/images/menu-dessert-cherry-chocolate.webp",
 };
 
 const RAKI_FROM = Math.min(...rakiChapter.sizes.map((s) => s.price));

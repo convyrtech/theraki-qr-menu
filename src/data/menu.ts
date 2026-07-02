@@ -419,7 +419,12 @@ export const chapters: Chapter[] = [
         signature: true,
       },
       {
-        name: "Малина или вишня в молочном шоколаде",
+        name: "Малина в молочном шоколаде",
+        price: 1350,
+        unit: "120 г",
+      },
+      {
+        name: "Вишня в молочном шоколаде",
         price: 1350,
         unit: "120 г",
       },
