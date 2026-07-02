@@ -853,7 +853,6 @@ export default function Menu() {
         <footer className="mn__colophon">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/ornaments/logo-black.webp" alt="The Raki" />
-          <span>Цены в рублях</span>
         </footer>
       </main>
 
