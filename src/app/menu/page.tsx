@@ -383,27 +383,14 @@ function cubicBezier(p1x: number, p1y: number, p2x: number, p2y: number) {
 const easeBlob = cubicBezier(0.42, 0, 0.75, 0.4);   // рост кляксы (ускоряется)
 const easeOrn = cubicBezier(0.16, 1, 0.3, 1);        // влёт каракули (торможение)
 
-function drawIntroFrame(
-  ctx: CanvasRenderingContext2D,
-  tMs: number,
-  vp: { w: number; h: number },
-  imgs: (HTMLImageElement | null)[],
-  grain: CanvasPattern | null,
-  paths: Record<string, Path2D>,
-) {
-  const sx = vp.w / 390, sy = vp.h / 844, su = (sx + sy) / 2;
-  // лист
-  ctx.globalCompositeOperation = "source-over";
-  ctx.clearRect(0, 0, vp.w, vp.h);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, vp.w, vp.h);
-  if (grain) {
-    ctx.globalAlpha = 0.05;
-    ctx.fillStyle = grain;
-    ctx.fillRect(0, 0, vp.w, vp.h);
-    ctx.globalAlpha = 1;
-  }
-  // каракули: влёт из-за экрана → на места
+// Конец влёта последней каракули: d=870мс + 700мс анимации
+const ORN_SETTLED_MS = 1600;
+// Глобальный уход линий, парити с mn-edge-out svg-версии: все линии держатся
+// до 84% от 3.35с и растворяются к 3.35с — финал чистый, без осколков дуг
+// поверх проявившегося меню.
+const EDGE_HOLD_MS = 2810, EDGE_END_MS = 3350;
+
+function drawOrnaments(ctx: CanvasRenderingContext2D, tMs: number, vp: { w: number; h: number }, imgs: (HTMLImageElement | null)[], su: number) {
   INTRO_ORNAMENTS.forEach((o, i) => {
     const img = imgs[i];
     if (!img) return;
@@ -418,6 +405,37 @@ function drawIntroFrame(
     ctx.drawImage(img, (-w / 2) * sc, (-h / 2) * sc, w * sc, h * sc);
     ctx.restore();
   });
+}
+
+function drawIntroFrame(
+  ctx: CanvasRenderingContext2D,
+  tMs: number,
+  vp: { w: number; h: number },
+  imgs: (HTMLImageElement | null)[],
+  grain: CanvasPattern | null,
+  paths: Record<string, Path2D>,
+  base: { canvas: HTMLCanvasElement | null; baked: boolean },
+) {
+  const sx = vp.w / 390, sy = vp.h / 844, su = (sx + sy) / 2;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.clearRect(0, 0, vp.w, vp.h);
+  // Статика листа (белый+зерно, после посадки — и каракули) живёт в offscreen-
+  // буфере: кадр прожига = 1 drawImage вместо полной перерисовки сцены.
+  if (base.canvas) {
+    if (!base.baked && tMs >= ORN_SETTLED_MS) {
+      const bctx = base.canvas.getContext("2d");
+      if (bctx) { drawOrnaments(bctx, ORN_SETTLED_MS, vp, imgs, su); base.baked = true; }
+    }
+    ctx.drawImage(base.canvas, 0, 0, vp.w, vp.h);
+  } else {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, vp.w, vp.h);
+    if (grain) {
+      ctx.globalAlpha = 0.05; ctx.fillStyle = grain;
+      ctx.fillRect(0, 0, vp.w, vp.h); ctx.globalAlpha = 1;
+    }
+  }
+  if (!base.baked) drawOrnaments(ctx, tMs, vp, imgs, su);
   // Дыры + кромка — ТРИ прохода (как в svg-версии, где cut-вычиталка стирала
   // линии в пересечениях): 1) все дыры; 2) все линии фронта; 3) «выжженные
   // ядра» (0.95) стирают линии там, где они легли поверх чужих дыр — иначе
@@ -432,11 +450,12 @@ function drawIntroFrame(
     const e = easeBlob(Math.min(1, raw));
     if (e <= 0.001) continue;
     const dieStart = delay + f.dur * 0.85;
+    const edgeFade = tMs <= EDGE_HOLD_MS ? 1 : Math.max(0, 1 - (tMs - EDGE_HOLD_MS) / (EDGE_END_MS - EDGE_HOLD_MS));
     live.push({
       f,
       path: paths[f.s + String((f.x + f.y) % 3)],
       scale: (f.r / 100) * 1.55 * e * su,
-      lineAlpha: t < dieStart ? 1 : Math.max(0, 1 - (t - dieStart) / 0.35),
+      lineAlpha: (t < dieStart ? 1 : Math.max(0, 1 - (t - dieStart) / 0.35)) * edgeFade,
     });
   }
   const inBlob = (l: Live, factor: number, draw: () => void) => {
@@ -457,7 +476,7 @@ function drawIntroFrame(
     inBlob(l, 0.992, () => {
       ctx.globalAlpha = l.lineAlpha;
       ctx.strokeStyle = "#2f66c0";
-      ctx.lineWidth = 1.3 / (l.scale * 0.992); // постоянная толщина на экране
+      ctx.lineWidth = 1.6 / (l.scale * 0.992); // постоянная толщина на экране (как в svg)
       ctx.stroke(l.path);
     });
     ctx.globalAlpha = 1;
@@ -499,15 +518,27 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
       im.src = `/ornaments/${o.src}.webp`;
     });
     let grain: CanvasPattern | null = null;
+    const base = { canvas: null as HTMLCanvasElement | null, baked: false };
+    const makeBase = () => {
+      const c = document.createElement("canvas");
+      c.width = canvas.width; c.height = canvas.height;
+      const b = c.getContext("2d");
+      if (!b) return;
+      b.setTransform(dpr, 0, 0, dpr, 0, 0);
+      b.fillStyle = "#ffffff"; b.fillRect(0, 0, vp.w, vp.h);
+      if (grain) { b.globalAlpha = 0.05; b.fillStyle = grain; b.fillRect(0, 0, vp.w, vp.h); b.globalAlpha = 1; }
+      base.canvas = c;
+    };
+    makeBase();
     const g = new Image();
-    g.onload = () => { grain = ctx.createPattern(g, "repeat"); };
+    g.onload = () => { grain = ctx.createPattern(g, "repeat"); base.baked = false; makeBase(); };
     g.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E";
 
     let raf = 0;
     const t0 = performance.now();
     const loop = (now: number) => {
       const tMs = now - t0;
-      drawIntroFrame(ctx, tMs, vp, imgs, grain, paths);
+      drawIntroFrame(ctx, tMs, vp, imgs, grain, paths, base);
       if (tMs < INTRO_TOTAL_MS) raf = window.requestAnimationFrame(loop);
       else finish();
     };
