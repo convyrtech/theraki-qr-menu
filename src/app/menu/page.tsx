@@ -519,7 +519,11 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
   const skip = () => {
     // Глотаем click, порождённый скип-тапом: иначе после unmount интро он
     // проваливается в меню и случайно открывает карточку блюда (ghost-click).
-    window.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); }, { capture: true, once: true });
+    // Скип колесом click не порождает — глоталка снимается по таймауту,
+    // чтобы не съесть первый ЧЕСТНЫЙ клик по меню.
+    const swallow = (e: MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
+    window.addEventListener("click", swallow, { capture: true, once: true });
+    window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 500);
     setDone(true); onDone();
   };
 
