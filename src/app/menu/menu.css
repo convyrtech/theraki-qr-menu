@@ -167,7 +167,8 @@ body:has(.mn) { background: #ffffff; }
 /* -------- секции + блюда -------- */
 .mn__section { padding: 30px 22px 8px; scroll-margin-top: 108px; }
 .mn__ch {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 92px; align-items: center; gap: 13px;
+  min-height: 78px;
   font-family: "Fraunces", "Cormorant Garamond", serif;
   font-weight: 500; font-size: clamp(27px, 7.7vw, 38px);
   line-height: 1.06; margin: 0 0 4px;
@@ -179,20 +180,40 @@ body:has(.mn) { background: #ffffff; }
    --medallion — «печать» на первой карточке раздела: якорь = сам грид
    карточек (position:relative), значок — его первый child с отрицательным
    top, поэтому позиция не зависит от высоты заголовка/леда. */
+.mn__ch-iconbox {
+  --icon-scale: 1;
+  justify-self: end;
+  width: 92px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  margin-right: -8px;
+  pointer-events: none;
+  opacity: 0.95;
+  filter: drop-shadow(0 9px 18px rgba(32,43,54,0.16));
+}
 .mn__ch-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  transform: translate(var(--icon-x, 0), var(--icon-y, 0)) scale(var(--icon-scale));
+  transform-origin: center;
 }
-.mn__ch-icon--inline {
-  flex: 0 0 auto; width: 76px; height: 76px;
-  opacity: 0.95; margin-right: -10px;
-}
+.mn__ch-iconbox--crab,
+.mn__ch-iconbox--raki { --icon-scale: 1.05; }
+.mn__ch-iconbox--shrimp { --icon-scale: 1.16; }
+.mn__ch-iconbox--mains { --icon-scale: 1.58; --icon-x: -14px; }
+.mn__ch-iconbox--desserts { --icon-scale: 1.38; --icon-x: -6px; }
+.mn__ch-iconbox--hot,
+.mn__ch-iconbox--soups,
+.mn__ch-iconbox--salads,
+.mn__ch-iconbox--starters { --icon-scale: 1.32; }
+.mn__ch-iconbox--mussels,
+.mn__ch-iconbox--vongole { --icon-scale: 1.08; }
+.mn__ch-iconbox--sauces { --icon-scale: 1.1; --icon-x: -17px; --icon-y: 14px; }
+.mn__ch-iconbox--garnish { --icon-scale: 1.12; }
 .mn__cards { position: relative; }
-.mn__ch-icon--medallion {
-  position: absolute; top: -34px; right: 12px; z-index: 5;
-  width: 96px; height: 96px;
-  opacity: 0.94; pointer-events: none;
-  filter: drop-shadow(0 8px 18px rgba(32,43,54,0.2));
-}
 .mn__ch-origin {
   font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
   color: rgba(19,32,42,0.45);

@@ -350,8 +350,7 @@ export const chapters: Chapter[] = [
   },
   {
     id: "vongole",
-    title: "Вонголе",
-    lede: "Ракушки.",
+    title: "Ракушки вонголе",
     entries: [
       {
         name: "Вонголе в соусе",

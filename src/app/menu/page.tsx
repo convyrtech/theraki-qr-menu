@@ -132,7 +132,7 @@ const fmtP = (n: number) => formatNumber(n).replace(/ /g, " ");
 const NAV_LABEL: Record<string, string> = {
   crab: "Краб", raki: "Раки", starters: "Закуски", shrimp: "Креветки",
   salads: "Салаты", hot: "Горячее", soups: "Супы", mussels: "Мидии",
-  mains: "Главный курс", garnish: "Гарниры", vongole: "Вонголе", sauces: "Соусы",
+  mains: "Главный курс", garnish: "Гарниры", vongole: "Ракушки", sauces: "Соусы",
   desserts: "Десерты", drinks: "Напитки",
 };
 
@@ -140,7 +140,7 @@ const NAV_LABEL: Record<string, string> = {
 // Супу пока даём укроп — до появления ассета «суп/тарелка» от художницы.
 const SECTION_ICON: Record<string, string> = {
   crab: "crab", raki: "crayfish-heraldic", shrimp: "shrimp",
-  starters: "oyster-pearl", salads: "salad-plate", hot: "hot-plate",
+  starters: "starter-plate", salads: "salad-plate", hot: "hot-plate",
   soups: "soup-plate", mussels: "mussel-blue", vongole: "clam",
   mains: "main-plate", garnish: "dill-coral", sauces: "oyster-pearl",
   desserts: "dessert-plate",
@@ -206,6 +206,18 @@ function DrinkBadge({ entry }: { entry: MenuEntry }) {
   );
 }
 
+function SectionIcon({ id }: { id: string }) {
+  const icon = SECTION_ICON[id];
+  if (!icon) return null;
+
+  return (
+    <span className={`mn__ch-iconbox mn__ch-iconbox--${id}`} aria-hidden>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="mn__ch-icon" src={`/ornaments/${icon}.webp`} alt="" />
+    </span>
+  );
+}
+
 // Полные фото с БЕЛЫМ студийным фоном (НЕ cutout) — ложатся под object-fit:cover карточек.
 const DISH_PHOTO: Record<string, string> = {
   "Камчатский краб с соусом бёр-нуазет": "/images/menu-crab-whole.webp",
@@ -250,13 +262,9 @@ const DISH_PHOTO: Record<string, string> = {
 const RAKI_FROM = Math.min(...rakiChapter.sizes.map((s) => s.price));
 
 /* ---------- РАКИ: 2 карточки (отварные/жареные); размеры+рецепты — в детали по тапу ---------- */
-function RakiBlock({ onOpen, medallion }: { onOpen: (p: RakiPreparation) => void; medallion?: string }) {
+function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
   return (
     <div className="mn__cards">
-      {medallion ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img className="mn__ch-icon mn__ch-icon--medallion" src={`/ornaments/${medallion}.webp`} alt="" aria-hidden />
-      ) : null}
       {rakiChapter.preparations.map((p) => (
         <button
           key={p.id}
@@ -817,15 +825,12 @@ export default function Menu() {
           <section className="mn__section" id={`mn-${sec.id}`} key={sec.id}>
             <h2 className="mn__ch">
               <span className="mn__ch-text">{sectionTitle(sec)}</span>
-              {SECTION_ICON[sec.id] && LIST_CATEGORIES.has(sec.id) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="mn__ch-icon mn__ch-icon--inline" src={`/ornaments/${SECTION_ICON[sec.id]}.webp`} alt="" aria-hidden />
-              ) : null}
+              <SectionIcon id={sec.id} />
             </h2>
             {sec.lede ? <span className="mn__ch-lede">{sec.lede}</span> : null}
             <div className="mn__rule" />
             {sec.id === "raki" ? (
-              <RakiBlock onOpen={setRakiPrep} medallion={SECTION_ICON[sec.id]} />
+              <RakiBlock onOpen={setRakiPrep} />
             ) : LIST_CATEGORIES.has(sec.id) ? (
               <div className={"mn__list" + (sec.id === "drinks" ? " mn__list--badges" : "")}>
                 {sec.entries.map((e, i) => {
@@ -865,10 +870,6 @@ export default function Menu() {
               </div>
             ) : (
               <div className="mn__cards">
-                {SECTION_ICON[sec.id] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="mn__ch-icon mn__ch-icon--medallion" src={`/ornaments/${SECTION_ICON[sec.id]}.webp`} alt="" aria-hidden />
-                ) : null}
                 {sec.entries.map((e, i) => {
                 const photo = DISH_PHOTO[e.name];
                 const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
