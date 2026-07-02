@@ -385,11 +385,16 @@ body:has(.mn) { background: #ffffff; }
 
 /* мини-заголовок под-группы в длинной главе (Воды/Газировки/Соки) — ритм вместо простыни */
 .mn__group {
+  display: flex; align-items: center; gap: 6px;
   margin: 28px 0 2px;
   font-family: var(--font-golos, sans-serif);
   font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #2f66c0;
 }
 .mn__group:first-child { margin-top: 12px; }
+.mn__group-icon {
+  width: 30px; height: 30px; object-fit: contain;
+  opacity: 0.92; flex: 0 0 auto;
+}
 
 /* подзаголовок раздела (lede) — вместо убранного origin */
 .mn__ch-lede {

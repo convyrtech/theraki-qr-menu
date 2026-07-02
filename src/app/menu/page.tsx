@@ -140,10 +140,17 @@ const NAV_LABEL: Record<string, string> = {
 // Супу пока даём укроп — до появления ассета «суп/тарелка» от художницы.
 const SECTION_ICON: Record<string, string> = {
   crab: "crab", raki: "crayfish-heraldic", shrimp: "shrimp",
-  starters: "oyster-pearl", salads: "dill-flower", hot: "crayfish-blue",
-  soups: "dill-coral", mussels: "mussel-blue", vongole: "clam",
-  mains: "scallop", garnish: "dill-coral", sauces: "oyster-pearl",
-  desserts: "scallop", drinks: "mussel-open",
+  starters: "oyster-pearl", salads: "salad-plate", hot: "hot-plate",
+  soups: "soup-plate", mussels: "mussel-blue", vongole: "clam",
+  mains: "main-plate", garnish: "dill-coral", sauces: "oyster-pearl",
+  desserts: "dessert-plate",
+};
+
+// «Напитки» — панель-список с под-группами: у каждой своя мини-иконка
+// вместо одного невпопад-значка на весь раздел (набор от Натальи, 2026-07-02).
+const DRINK_GROUP_ICON: Record<string, string> = {
+  "Воды": "drink-water", "Газировки": "drink-soda", "Чай": "drink-tea",
+  "Кофе": "drink-coffee", "Соки и морсы": "drink-juice", "Пиво": "drink-beer",
 };
 
 // маркеры из дока: чили — острота, помидор — рецепт «Дон с помидором». Отрисованы вручную, выверены по пикселям.
@@ -201,6 +208,7 @@ function DrinkBadge({ entry }: { entry: MenuEntry }) {
 
 // Полные фото с БЕЛЫМ студийным фоном (НЕ cutout) — ложатся под object-fit:cover карточек.
 const DISH_PHOTO: Record<string, string> = {
+  "Камчатский краб с соусом бёр-нуазет": "/images/menu-crab-whole.webp",
   "Фаланга камчатского краба с соусом бёр-нуазет": "/images/menu-crab-phalanx.webp",
   "Микс на льду: магаданская и медведка 70/90": "/images/menu-shrimp-mix.webp",
   "Медведка на льду 70/90": "/images/menu-shrimp-medvedka.webp",
@@ -825,7 +833,15 @@ export default function Menu() {
                   const hasDrinkLogo = sec.id === "drinks" && Boolean(drinkLogo(e));
                   return (
                     <Fragment key={e.name}>
-                      {showGroup ? <div className="mn__group">{e.group}</div> : null}
+                      {showGroup ? (
+                        <div className="mn__group">
+                          {DRINK_GROUP_ICON[e.group!] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img className="mn__group-icon" src={`/ornaments/${DRINK_GROUP_ICON[e.group!]}.webp`} alt="" aria-hidden />
+                          ) : null}
+                          {e.group}
+                        </div>
+                      ) : null}
                       <div className={"mn__row" + (hasDrinkLogo ? " mn__row--with-badge" : "")}>
                         {hasDrinkLogo ? <DrinkBadge entry={e} /> : null}
                         <span className="mn__row-name">
