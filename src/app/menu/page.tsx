@@ -484,6 +484,15 @@ function drawIntroFrame(
   // 3: ядра стирают линии в пересечениях (для бумаги — no-op, там уже дыра)
   ctx.globalCompositeOperation = "destination-out";
   for (const l of live) inBlob(l, 0.95, () => ctx.fill(l.path));
+  // 4: «молочная вуаль» — destination-over кладёт белила ТОЛЬКО в прозрачные
+  //    дыры (под линии и бумагу): сквозь прожиг видно молочное меню, паттерн-
+  //    призраки задавлены; в финале молоко растворяется — меню проявляется.
+  const veil = tMs <= 2900 ? 0.7 : Math.max(0, 0.7 * (1 - (tMs - 2900) / 600));
+  if (veil > 0.005) {
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.fillStyle = `rgba(255,255,255,${veil.toFixed(3)})`;
+    ctx.fillRect(0, 0, vp.w, vp.h);
+  }
   ctx.globalCompositeOperation = "source-over";
 }
 
