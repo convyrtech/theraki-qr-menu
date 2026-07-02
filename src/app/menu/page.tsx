@@ -218,6 +218,24 @@ function SectionIcon({ id }: { id: string }) {
   );
 }
 
+// Заголовок секции: значок идёт СРАЗУ за последней буквой (Наталья 02.07).
+// Последнее слово и значок связаны nowrap-хвостом: при нехватке места
+// переносятся ВМЕСТЕ — значок никогда не остаётся сиротой на своей строке.
+function ChTitle({ id, title }: { id: string; title: string }) {
+  const sp = title.lastIndexOf(" ");
+  const head = sp > 0 ? title.slice(0, sp + 1) : "";
+  const tail = sp > 0 ? title.slice(sp + 1) : title;
+  return (
+    <span className="mn__ch-text">
+      {head}
+      <span className="mn__ch-tail">
+        {tail}
+        <SectionIcon id={id} />
+      </span>
+    </span>
+  );
+}
+
 // Полные фото с БЕЛЫМ студийным фоном (НЕ cutout) — ложатся под object-fit:cover карточек.
 const DISH_PHOTO: Record<string, string> = {
   "Камчатский краб с соусом бёр-нуазет": "/images/menu-crab-whole.webp",
@@ -824,8 +842,7 @@ export default function Menu() {
         {SECTIONS.map((sec) => (
           <section className="mn__section" id={`mn-${sec.id}`} key={sec.id}>
             <h2 className="mn__ch">
-              <span className="mn__ch-text">{sectionTitle(sec)}</span>
-              <SectionIcon id={sec.id} />
+              <ChTitle id={sec.id} title={sectionTitle(sec)} />
             </h2>
             {sec.lede ? <span className="mn__ch-lede">{sec.lede}</span> : null}
             <div className="mn__rule" />
