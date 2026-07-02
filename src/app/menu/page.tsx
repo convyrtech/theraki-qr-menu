@@ -142,7 +142,7 @@ const SECTION_ICON: Record<string, string> = {
   crab: "crab", raki: "crayfish-heraldic", shrimp: "shrimp",
   starters: "starter-plate", salads: "salad-plate", hot: "hot-plate",
   soups: "soup-plate", mussels: "mussel-blue", vongole: "clam",
-  mains: "main-plate", garnish: "dill-coral", sauces: "oyster-pearl",
+  mains: "main-plate", garnish: "garnish-basket", sauces: "sauce-boat",
   desserts: "dessert-plate",
 };
 
