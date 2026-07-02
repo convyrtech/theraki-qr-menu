@@ -174,7 +174,6 @@ const DISH_PHOTO: Record<string, string> = {
   "Микс на льду: магаданская и медведка 70/90": "/images/menu-shrimp-mix.webp",
   "Медведка на льду 70/90": "/images/menu-shrimp-medvedka.webp",
   "Магаданская на льду 70/90": "/images/menu-shrimp-mix.webp",
-  "Магаданская обжаренная в азиатском стиле 70/90": "/images/menu-shrimp-hot-asian.webp",
   "Магаданская на льду 50/70": "/images/menu-shrimp-mix.webp",
   "Золотистый бейби-картофель с балтийской килькой": "/images/menu-starter-potato.webp",
   "Хрустящие битые огурцы в пикантном маринаде": "/images/menu-starter-cucumbers.webp",
