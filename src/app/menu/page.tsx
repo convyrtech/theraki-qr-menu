@@ -304,6 +304,7 @@ function RakiDetail({ prep, onClose }: { prep: RakiPreparation; onClose: () => v
           {prep.recipes.map((r) => (
             <span className={"mn__recipe" + (r.spicy ? " is-spicy" : "")} key={r.name}>
               {r.name}
+              {r.surcharge ? <i className="mn__recipe-sur">{r.surcharge}</i> : null}
               {r.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
               {!r.spicy && r.name.toLowerCase().includes("помидор")
                 ? <span className="mn__mark" title="томат">{TomatoIcon}</span> : null}
@@ -868,6 +869,11 @@ export default function Menu() {
                       </h3>
                     <span className="mn__card-price">{fmtP(e.price) + " ₽" + (e.unit === "кг" ? " / кг" : "")}</span>
                       {e.unit && e.unit !== "кг" ? <span className="mn__card-meta">{e.unit}</span> : null}
+                      {e.variants?.length ? (
+                        <span className="mn__card-meta">
+                          {e.variants.map((v) => v.label + " — " + fmtP(v.price) + " ₽").join(" · ")}
+                        </span>
+                      ) : null}
                       {e.note ? (
                         isSauceNote(e.note)
                           ? <SauceChips note={e.note} />

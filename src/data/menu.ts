@@ -65,7 +65,7 @@ export type RakiPreparation = {
   /** Заголовок списка рецептов: «Рецепты варки» и т.п. */
   recipesLabel: string;
   /** Рецепты; extra — надбавка к цене за кг, spicy — острый. */
-  recipes: { name: string; extra?: number; spicy?: boolean }[];
+  recipes: { name: string; surcharge?: string; extra?: number; spicy?: boolean }[];
 };
 
 export type RakiSizeTier = {
@@ -98,6 +98,7 @@ export const rakiChapter = {
         { name: "Острый перчик", spicy: true },
         { name: "Донской" },
         { name: "Дон с помидором" },
+        { name: "В крафтовом пиве", surcharge: "+1 000 ₽" },
       ],
     },
     {
@@ -107,6 +108,7 @@ export const rakiChapter = {
       recipes: [
         { name: "На крафтовом пиве с миксом трав", spicy: true },
         { name: "В сливочно-чесночном соусе" },
+        { name: "В сметане с укропом" },
       ],
     },
   ] satisfies RakiPreparation[],
@@ -146,27 +148,32 @@ export const chapters: Chapter[] = [
         name: "Микс на льду: магаданская и медведка 70/90",
         price: 6000,
         unit: "кг",
+        variants: [{ label: "0,5 кг", price: 3000 }],
         signature: true,
       },
       {
         name: "Медведка на льду 70/90",
         price: 6000,
         unit: "кг",
+        variants: [{ label: "0,5 кг", price: 3000 }],
       },
       {
         name: "Магаданская на льду 70/90",
         price: 4900,
         unit: "кг",
+        variants: [{ label: "0,5 кг", price: 2450 }],
       },
       {
         name: "Магаданская обжаренная в азиатском стиле 70/90",
         price: 4900,
         unit: "кг",
+        variants: [{ label: "0,5 кг", price: 2450 }],
       },
       {
         name: "Магаданская на льду 50/70",
         price: 6000,
         unit: "кг",
+        variants: [{ label: "0,5 кг", price: 3000 }],
       },
     ],
   },
@@ -225,7 +232,7 @@ export const chapters: Chapter[] = [
       {
         name: "Тропический салат с камчатским крабом, манго и личи",
         note: "Смелое и освежающее сочетание: деликатесное мясо краба, сладкие экзотические фрукты и сливочное авокадо. Подаётся с лёгким акцентом из водорослей нори.",
-        price: 2000,
+        price: 1800,
         unit: "180 г",
       },
       {
@@ -364,7 +371,7 @@ export const chapters: Chapter[] = [
       {
         name: "Авторская паста с камчатским крабом и нори в кокосовом соусе",
         note: "Изысканный фьюжн на стыке Италии и Паназии: премиальное мясо камчатского краба в шелковистом соусе на оливковом масле и чесноке, умами-акцент придают нори.",
-        price: 2500,
+        price: 1800,
         unit: "200 г",
       },
       {
@@ -376,7 +383,7 @@ export const chapters: Chapter[] = [
       {
         name: "Фетучини с раковыми шейками и молодым шпинатом",
         note: "Переосмысление сливочной классики: ленты пасты аль-денте, нежный молодой шпинат и сочные раковые шейки в густом сливочном соусе.",
-        price: 2650,
+        price: 1900,
         unit: "190 г",
       },
     ],
@@ -453,8 +460,8 @@ export const chapters: Chapter[] = [
         group: "Воды",
       },
       { name: "Боржоми", price: 300, unit: "0,5 л", group: "Воды" },
-      { name: "Кока-кола (Грузия), стекло", price: 300, unit: "0,33 л", group: "Газировки" },
-      { name: "Кока-кола Zero, ж/б", price: 300, unit: "0,33 л", group: "Газировки" },
+      { name: "Кока-кола (Грузия), стекло", price: 400, unit: "0,33 л", group: "Газировки" },
+      { name: "Кока-кола Zero, ж/б", price: 400, unit: "0,33 л", group: "Газировки" },
       { name: "Фанта, ж/б", price: 400, unit: "0,33 л", group: "Газировки" },
       {
         name: "Сок YOGA",
