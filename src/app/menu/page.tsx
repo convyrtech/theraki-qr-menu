@@ -242,9 +242,13 @@ const DISH_PHOTO: Record<string, string> = {
 const RAKI_FROM = Math.min(...rakiChapter.sizes.map((s) => s.price));
 
 /* ---------- РАКИ: 2 карточки (отварные/жареные); размеры+рецепты — в детали по тапу ---------- */
-function RakiBlock({ onOpen }: { onOpen: (p: RakiPreparation) => void }) {
+function RakiBlock({ onOpen, medallion }: { onOpen: (p: RakiPreparation) => void; medallion?: string }) {
   return (
     <div className="mn__cards">
+      {medallion ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="mn__ch-icon mn__ch-icon--medallion" src={`/ornaments/${medallion}.webp`} alt="" aria-hidden />
+      ) : null}
       {rakiChapter.preparations.map((p) => (
         <button
           key={p.id}
@@ -805,15 +809,15 @@ export default function Menu() {
           <section className="mn__section" id={`mn-${sec.id}`} key={sec.id}>
             <h2 className="mn__ch">
               <span className="mn__ch-text">{sectionTitle(sec)}</span>
-              {SECTION_ICON[sec.id] ? (
+              {SECTION_ICON[sec.id] && LIST_CATEGORIES.has(sec.id) ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="mn__ch-icon" src={`/ornaments/${SECTION_ICON[sec.id]}.webp`} alt="" aria-hidden />
+                <img className="mn__ch-icon mn__ch-icon--inline" src={`/ornaments/${SECTION_ICON[sec.id]}.webp`} alt="" aria-hidden />
               ) : null}
             </h2>
             {sec.lede ? <span className="mn__ch-lede">{sec.lede}</span> : null}
             <div className="mn__rule" />
             {sec.id === "raki" ? (
-              <RakiBlock onOpen={setRakiPrep} />
+              <RakiBlock onOpen={setRakiPrep} medallion={SECTION_ICON[sec.id]} />
             ) : LIST_CATEGORIES.has(sec.id) ? (
               <div className={"mn__list" + (sec.id === "drinks" ? " mn__list--badges" : "")}>
                 {sec.entries.map((e, i) => {
@@ -845,6 +849,10 @@ export default function Menu() {
               </div>
             ) : (
               <div className="mn__cards">
+                {SECTION_ICON[sec.id] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="mn__ch-icon mn__ch-icon--medallion" src={`/ornaments/${SECTION_ICON[sec.id]}.webp`} alt="" aria-hidden />
+                ) : null}
                 {sec.entries.map((e, i) => {
                 const photo = DISH_PHOTO[e.name];
                 const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;

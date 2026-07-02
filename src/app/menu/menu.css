@@ -173,10 +173,25 @@ body:has(.mn) { background: #ffffff; }
   line-height: 1.06; margin: 0 0 4px;
 }
 .mn__ch-text { min-width: 0; }
-/* тематический значок-орнамент секции (прозрачный PNG) */
+/* тематический значок-орнамент секции (прозрачный PNG). Два режима:
+   --inline — крупный, но безопасный, в строке заголовка (панели-списки:
+   соусы/напитки — рядом с ценами, наезд на текст исключён);
+   --medallion — «печать» на первой карточке раздела: якорь = сам грид
+   карточек (position:relative), значок — его первый child с отрицательным
+   top, поэтому позиция не зависит от высоты заголовка/леда. */
 .mn__ch-icon {
-  flex: 0 0 auto; width: 48px; height: 48px; object-fit: contain;
-  opacity: 0.95;
+  object-fit: contain;
+}
+.mn__ch-icon--inline {
+  flex: 0 0 auto; width: 76px; height: 76px;
+  opacity: 0.95; margin-right: -10px;
+}
+.mn__cards { position: relative; }
+.mn__ch-icon--medallion {
+  position: absolute; top: -34px; right: 12px; z-index: 5;
+  width: 96px; height: 96px;
+  opacity: 0.94; pointer-events: none;
+  filter: drop-shadow(0 8px 18px rgba(32,43,54,0.2));
 }
 .mn__ch-origin {
   font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
