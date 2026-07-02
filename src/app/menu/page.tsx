@@ -217,7 +217,7 @@ const DISH_PHOTO: Record<string, string> = {
   "Салат с ростбифом из мраморной говядины и вялеными томатами": "/images/menu-salad-roastbeef.webp",
   "Салат с хрустящими баклажанами и сочными томатами": "/images/menu-salad-eggplant.webp",
   "Классический греческий салат": "/images/menu-salad-greek.webp",
-  "Лангустины в цитрусово-сливочном масле": "/images/menu-shrimp-hot-asian.webp",
+  "Лангустины в цитрусово-сливочном масле": "/images/menu-shrimp-langoustine.webp",
   "Гурмэ хот-дог с крабом и авокадо": "/images/menu-hot-hotdog.webp",
   "Фиш-энд-краб": "/images/menu-hot-fishcrab.webp",
   "Куриные крылья с соусом на выбор": "/images/menu-hot-wings.webp",
