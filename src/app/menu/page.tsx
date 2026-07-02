@@ -201,6 +201,7 @@ function DrinkBadge({ entry }: { entry: MenuEntry }) {
 
 // Полные фото с БЕЛЫМ студийным фоном (НЕ cutout) — ложатся под object-fit:cover карточек.
 const DISH_PHOTO: Record<string, string> = {
+  "Фаланга камчатского краба с соусом бёр-нуазет": "/images/menu-crab-phalanx.webp",
   "Микс на льду: магаданская и медведка 70/90": "/images/menu-shrimp-mix.webp",
   "Медведка на льду 70/90": "/images/menu-shrimp-medvedka.webp",
   "Магаданская обжаренная в азиатском стиле 70/90": "/images/menu-shrimp-hot-asian-v2.webp",
