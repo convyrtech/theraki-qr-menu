@@ -525,11 +525,15 @@ body:has(.mn) { background: #ffffff; }
 .mn__detail { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .mn__detail-bg {
   position: absolute; inset: 0; border: 0; cursor: pointer;
-  /* лёгкая чернильная вуаль: отделение карточки несёт blur, не темнота
-     (0.78 читалось «серой стеной» — фидбэк Натальи 2026-07-03) */
-  background: rgba(11,25,46,0.45);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  /* молочная вуаль в языке интро (белила + расфокус), не тёмный скрим:
+     «серый не очень» — фидбэк Натальи 2026-07-03 */
+  background: rgba(255,255,255,0.6);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   animation: mn-sheet-in 0.3s both;
+}
+/* без поддержки backdrop-filter молоко плотнее, иначе резкий контент просвечивает */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mn__detail-bg { background: rgba(255,255,255,0.78); }
 }
 .mn__detail-card {
   position: relative; z-index: 1; width: 100%;
