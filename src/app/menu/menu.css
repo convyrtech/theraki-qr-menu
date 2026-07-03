@@ -525,8 +525,10 @@ body:has(.mn) { background: #ffffff; }
 .mn__detail { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
 .mn__detail-bg {
   position: absolute; inset: 0; border: 0; cursor: pointer;
-  background: rgba(11,25,46,0.78);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  /* лёгкая чернильная вуаль: отделение карточки несёт blur, не темнота
+     (0.78 читалось «серой стеной» — фидбэк Натальи 2026-07-03) */
+  background: rgba(11,25,46,0.45);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   animation: mn-sheet-in 0.3s both;
 }
 .mn__detail-card {
@@ -583,8 +585,8 @@ body:has(.mn) { background: #ffffff; }
   background: rgba(255,255,255,0.9); color: #2f66c0;
   border: 1px solid rgba(47,102,192,0.28); border-radius: 13px;
   box-shadow: 0 12px 30px rgba(11,25,46,0.14), inset 0 1px 0 rgba(255,255,255,0.8);
-  backdrop-filter: blur(14px) saturate(1.08);
   -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  backdrop-filter: blur(14px) saturate(1.08);
   cursor: pointer;
   touch-action: manipulation;
   transition: transform 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease;
@@ -609,8 +611,8 @@ body:has(.mn) { background: #ffffff; }
 .mn__cat-backdrop {
   position: absolute; inset: 0; border: 0; cursor: pointer;
   background: rgba(11,25,46,0.28);
-  backdrop-filter: blur(8px) saturate(1.04);
   -webkit-backdrop-filter: blur(8px) saturate(1.04);
+  backdrop-filter: blur(8px) saturate(1.04);
 }
 .mn__cat-panel {
   position: relative;
@@ -739,8 +741,8 @@ body:has(.mn) { background: #ffffff; }
      (его рендер нестабилен), blur — приятный бонус поверх */
   background:
     radial-gradient(120% 70% at 50% 46%, rgba(247,241,227,0.99) 0%, rgba(238,227,205,0.97) 60%, rgba(232,221,200,0.98) 100%);
-  backdrop-filter: blur(16px) saturate(1.1);
   -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
 }
 .mn__sheet-head {
   position: relative; z-index: 1;
