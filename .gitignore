@@ -20,3 +20,16 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# рабочий мусор сессий (скрины, логи, референсы, выгрузки) — не для репо
+.playwright-mcp/
+artifacts/
+recovered-salad-photos/
+фото*/
+Референсы/
+*.zip
+/*.png
+/*.jpg
+/orig.jpg
+/menu-pustoy5.html
+/Пусто*
