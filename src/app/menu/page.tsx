@@ -934,6 +934,23 @@ export default function Menu() {
           </section>
         ))}
 
+        {/* приглашение в приложение доставки — просьба Натальи 2026-07-03;
+            одна кнопка вместо куара: гость уже в телефоне, редирект app.theraki.ru
+            сам разводит iOS/Android */}
+        <section className="mn__app" aria-label="Приложение доставки The Raki">
+          <span className="mn__app-kicker">Клуб лояльности The Raki</span>
+          <p className="mn__app-lead">Оплачивайте до 30% счёта бонусами</p>
+          <a
+            className="mn__app-btn"
+            href="https://app.theraki.ru/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Скачать приложение
+          </a>
+          <span className="mn__app-os">iOS · Android</span>
+        </section>
+
         {/* тихий колофон — лента не обрывается «в никуда» */}
         <footer className="mn__colophon">
           {/* eslint-disable-next-line @next/next/no-img-element */}

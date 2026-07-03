@@ -498,6 +498,41 @@ body:has(.mn) { background: #ffffff; }
 .mn__recipe .mn__mark { margin-left: 2px; }
 .mn__recipe-extra { font-family: var(--font-mono, monospace); font-size: 11px; color: rgba(19,32,42,0.5); }
 
+/* -------- приглашение в приложение (финал ленты, перед колофоном) --------
+   фарфоровая карточка: тонкая синяя рамка, серифная выгода, чернильная пилюля-CTA
+   (тот же интерактивный язык, что активная пилюля навигации) */
+.mn__app {
+  margin: 54px 22px 0;
+  padding: 26px 20px 22px;
+  border: 1px solid rgba(47,102,192,0.22);
+  border-radius: 16px;
+  background: #ffffff;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center;
+}
+.mn__app-kicker {
+  font-family: var(--font-mono, monospace); font-size: 10px;
+  letter-spacing: 0.24em; text-transform: uppercase; color: #2f66c0;
+}
+.mn__app-lead {
+  margin: 0; max-width: 250px;
+  font-family: "Fraunces", "Cormorant Garamond", serif; font-weight: 500;
+  font-size: 22px; line-height: 1.28; color: #13202a;
+}
+.mn__app-btn {
+  margin-top: 8px;
+  display: inline-block; padding: 13px 28px;
+  background: #17313d; color: #ffffff; border-radius: 999px;
+  font-family: var(--font-golos, sans-serif); font-size: 14px;
+  letter-spacing: 0.02em; line-height: 1; text-decoration: none;
+  touch-action: manipulation;
+}
+.mn__app-btn:active { background: #13202a; }
+.mn__app-os {
+  font-family: var(--font-mono, monospace); font-size: 10px;
+  letter-spacing: 0.18em; color: rgba(19,32,42,0.55);
+}
+
 /* колофон в финале ленты: маленький лого + строка-факт, много воздуха */
 .mn__colophon {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
