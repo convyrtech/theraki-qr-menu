@@ -48,6 +48,34 @@ export function isAdmin(userId: number | undefined): boolean {
 // Разделы-напитки (soft/tea/beer): для них острота не показывается.
 const DRINK_CHAPTERS = new Set(["soft", "tea", "beer"]);
 
+// Инструкция в самом боте (кнопка «❓ Инструкция» и команда /help).
+// Только статический текст — валидный HTML, без данных из БД.
+const HELP_TEXT = [
+  "📖 <b>Как пользоваться ботом</b>",
+  "",
+  "Здесь вы меняете меню, которое гости видят по QR на столах. Правки выходят на сайт сами за несколько секунд.",
+  "",
+  "<b>Разделы</b>",
+  "• /menu — список всех разделов.",
+  "• «➕ Добавить категорию» — пишете название и выбираете вид на сайте: 🖼 карточки с фото или 📋 простой список.",
+  "",
+  "<b>Блюдо</b> (нажать раздел → блюдо):",
+  "• 🙈 Скрыть / ♻️ Вернуть — стоп-лист (закончилось / снова есть). Скрытое помечено ⛔ и гостям не видно.",
+  "• 💰 Цена · ⚖️ Грамовка · ✏️ Название",
+  "• 📝 Кратко (строка на карточке) · 📄 Подробно (полный текст по нажатию гостя)",
+  "• 📐 Форматы — доп. подача, пишется «метка = цена», например 0,5 кг = 1450",
+  "• ◆ Фирменная · 🌶 Острая — метки-значки",
+  "• 🗑 Удалить (с переспросом). Вернуть удалённое — команда /deleted",
+  "• «➕ Добавить позицию» — название → цена → дальше дозаполняете кнопками.",
+  "",
+  "<b>Раки</b> (кнопка 🦞): цены по размерам S–XXL и рецепты (отварные/жареные).",
+  "",
+  "<b>Ещё</b>",
+  "• /export — прислать бэкап всего меню файлом.",
+  "• /cancel — отменить начатый ввод.",
+  "• Фото блюд пока загружаются отдельно (следующий этап).",
+].join("\n");
+
 // --- Форматирование -----------------------------------------------------
 const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 
@@ -69,6 +97,7 @@ export async function renderChapterList(): Promise<{ text: string; keyboard: Inl
     kb.text(`${c.title} · ${c.total}${mark}`, `ch:${c.id}`).row();
   }
   kb.text("➕ Добавить категорию", "addchapter").row();
+  kb.text("❓ Инструкция", "help").row();
   const totalHidden = chapters.reduce((n, c) => n + c.hidden, 0);
   const text =
     `🦞 <b>Меню The Raki</b>\nВыберите раздел, чтобы посмотреть позиции.` +
@@ -279,7 +308,8 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await clearState(ctx.from!.id);
     const { text, keyboard } = await renderChapterList();
     await ctx.reply(
-      "Привет! Это бот управления меню The Raki.\nКоманда /menu — открыть разделы.\n\n" + text,
+      "Привет! Это бот управления меню The Raki.\nКоманда /menu — открыть разделы, /help — инструкция.\n\n" +
+        text,
       { parse_mode: "HTML", reply_markup: keyboard },
     );
   });
@@ -288,6 +318,16 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await clearState(ctx.from!.id);
     const { text, keyboard } = await renderChapterList();
     await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+  });
+
+  bot.command("help", async (ctx) => {
+    await ctx.reply(HELP_TEXT, { parse_mode: "HTML" });
+  });
+
+  bot.callbackQuery("help", async (ctx) => {
+    const kb = new InlineKeyboard().text("◀️ К разделам", "menu");
+    await editTo(ctx, HELP_TEXT, kb);
+    await ctx.answerCallbackQuery();
   });
 
   bot.command("export", async (ctx) => {

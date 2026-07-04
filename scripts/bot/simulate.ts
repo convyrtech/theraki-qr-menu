@@ -286,6 +286,15 @@ async function main() {
   await bot.handleUpdate(cb(ADMIN, `flag:${id}:signature`)); // свежий апдейт — вернуть
   await check("метка возвращена в исходное", (await getEntry(id))!.signature === sigBefore);
 
+  // === Инструкция: /help и кнопка «Инструкция» ===
+  console.log("\n=== ИНСТРУКЦИЯ ===");
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "/help"));
+  await check("/help присылает инструкцию", calls.some((c) => (c.text ?? "").includes("Как пользоваться")));
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "help"));
+  await check("кнопка «Инструкция» показывает текст", calls.some((c) => (c.text ?? "").includes("Как пользоваться")));
+
   // === /export: бэкап приходит документом ===
   console.log("\n=== /export ===");
   calls.length = 0;
