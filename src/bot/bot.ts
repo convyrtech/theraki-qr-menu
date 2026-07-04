@@ -5,7 +5,7 @@
 // NB: без `server-only` — гоняется CLI-раннерами (tsx); импортируется только
 // серверным кодом (webhook route) и dev/simulate-скриптами.
 import { Bot, InlineKeyboard, type Context } from "grammy";
-import { listChapters, listEntries, getEntry, listDeleted } from "./menu-admin-db";
+import { listChapters, listEntries, getEntry, listDeleted, getChapterMeta } from "./menu-admin-db";
 import {
   setHidden,
   setPrice,
@@ -44,6 +44,9 @@ export function isAdmin(userId: number | undefined): boolean {
   return userId != null && adminIds().has(userId);
 }
 
+// Разделы-напитки (soft/tea/beer): для них острота не показывается.
+const DRINK_CHAPTERS = new Set(["soft", "tea", "beer"]);
+
 // --- Форматирование -----------------------------------------------------
 const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 
@@ -75,10 +78,12 @@ export async function renderChapterList(): Promise<{ text: string; keyboard: Inl
 export async function renderEntryList(
   chapterId: string,
 ): Promise<{ text: string; keyboard: InlineKeyboard } | null> {
+  // Один лёгкий запрос за названием + один за позициями (раньше был тяжёлый
+  // агрегат listChapters ради одного title — лишнее обращение к БД по хрупкой сети).
   const entries = await listEntries(chapterId);
-  const chapters = await listChapters();
-  const ch = chapters.find((c) => c.id === chapterId);
-  if (!ch) return null;
+  const meta = await getChapterMeta(chapterId);
+  if (!meta) return null;
+  const hidden = entries.filter((e) => e.isHidden).length;
   const kb = new InlineKeyboard();
   for (const e of entries) {
     const mark = e.isHidden ? "⛔ " : "";
@@ -86,7 +91,7 @@ export async function renderEntryList(
   }
   kb.text("➕ Добавить позицию", `addentry:${chapterId}`).row();
   kb.text("◀️ К разделам", "menu");
-  const text = `<b>${esc(ch.title)}</b>\nПозиций: ${ch.total}${ch.hidden ? ` · скрыто ${ch.hidden}` : ""}`;
+  const text = `<b>${esc(meta.title)}</b>\nПозиций: ${entries.length}${hidden ? ` · скрыто ${hidden}` : ""}`;
   return { text, keyboard: kb };
 }
 
@@ -105,7 +110,11 @@ export async function renderEntryCard(
     lines.push(`📐 Форматы: ${e.variants.map((v) => `${esc(v.label)} — ${rub(v.price)}`).join(" · ")}`);
   }
   if (e.abv) lines.push(`🍺 Крепость: ${esc(e.abv)}`);
-  lines.push(`🏷 Метки: ${e.signature ? "◆ фирменная " : ""}${e.spicy ? "🌶 острая" : ""}`.trimEnd());
+  // Острота у напитков — бессмысленна (замечание владельца): не показываем ни в
+  // тексте, ни кнопкой для разделов напитков.
+  const isDrink = DRINK_CHAPTERS.has(e.chapterId);
+  const marks = `${e.signature ? "◆ фирменная " : ""}${!isDrink && e.spicy ? "🌶 острая" : ""}`.trimEnd();
+  lines.push(`🏷 Метки: ${marks || "—"}`);
   if (e.noteShort) lines.push(``, `<b>Кратко:</b> <i>${esc(e.noteShort)}</i>`);
   if (e.note) lines.push(``, `<b>Подробно:</b> <i>${esc(e.note)}</i>`);
 
@@ -121,13 +130,11 @@ export async function renderEntryCard(
     .text("📄 Подробно", `full:${e.id}`)
     .row()
     .text(`📐 Форматы (${e.variants.length})`, `vars:${e.id}`)
-    .row()
-    .text(e.signature ? "◆ убрать" : "◆ фирменная", `flag:${e.id}:signature`)
-    .text(e.spicy ? "🌶 убрать" : "🌶 острая", `flag:${e.id}:spicy`)
-    .row()
-    .text("🗑 Удалить", `del:${e.id}`)
-    .row()
-    .text("◀️ Назад", `ch:${e.chapterId}`);
+    .row();
+  // Метки: ◆ всегда; 🌶 — только для не-напитков.
+  kb.text(e.signature ? "◆ убрать" : "◆ фирменная", `flag:${e.id}:signature`);
+  if (!isDrink) kb.text(e.spicy ? "🌶 убрать" : "🌶 острая", `flag:${e.id}:spicy`);
+  kb.row().text("🗑 Удалить", `del:${e.id}`).row().text("◀️ Назад", `ch:${e.chapterId}`);
   return { text: lines.join("\n"), keyboard: kb };
 }
 

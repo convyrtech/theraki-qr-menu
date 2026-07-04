@@ -176,6 +176,20 @@ async function main() {
   await bot.handleUpdate(cb(ADMIN, `restore:${id}`));
   await check("после restore: снова доступна", (await getEntry(id)) !== null);
 
+  // === Напитки: у 🌶 не должно быть кнопки flag:*:spicy ===
+  console.log("\n=== НАПИТКИ: острота скрыта ===");
+  const soft = await listEntries("soft");
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, `e:${soft[0].id}`));
+  const drinkBtns = calls.find((c) => c.buttons)?.buttons ?? [];
+  await check("у напитка НЕТ кнопки остроты", !drinkBtns.some((b) => b.includes("остр")));
+  await check("у напитка ЕСТЬ ◆ фирменная", drinkBtns.some((b) => b.includes("◆")));
+  const food = await listEntries("hot");
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, `e:${food[0].id}`));
+  const foodBtns = calls.find((c) => c.buttons)?.buttons ?? [];
+  await check("у горячего ЕСТЬ кнопка остроты", foodBtns.some((b) => b.includes("остр")));
+
   // === РАКИ (self-cleaning) ===
   console.log("\n=== РАКИ (доска boards) ===");
   const board0 = await getBoard();

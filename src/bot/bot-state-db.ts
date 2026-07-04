@@ -1,15 +1,9 @@
 // Состояние диалога бота в БД (переживает смену лямбд в serverless).
 // TTL — незаконченный диалог протухает, чтобы старый «ввод цены» не поймал
 // случайное сообщение через час.
-import { neon } from "@neondatabase/serverless";
+import { dbQuery } from "./db";
 
 const TTL_MS = 10 * 60 * 1000; // 10 минут
-
-function db() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL не задан.");
-  return neon(url);
-}
 
 export type BotState = {
   action: string;
@@ -18,8 +12,7 @@ export type BotState = {
 };
 
 export async function getState(userId: number): Promise<BotState | null> {
-  const sql = db();
-  const rows = (await sql.query(
+  const rows = (await dbQuery(
     `SELECT action, entry_id, payload, updated_at FROM bot_state WHERE user_id=$1`,
     [userId],
   )) as unknown as { action: string; entry_id: number | null; payload: Record<string, unknown>; updated_at: string }[];
@@ -38,8 +31,7 @@ export async function setState(
   entryId: number | null,
   payload: Record<string, unknown> = {},
 ): Promise<void> {
-  const sql = db();
-  await sql.query(
+  await dbQuery(
     `INSERT INTO bot_state (user_id, action, entry_id, payload, updated_at)
      VALUES ($1,$2,$3,$4::jsonb, now())
      ON CONFLICT (user_id) DO UPDATE
@@ -49,6 +41,5 @@ export async function setState(
 }
 
 export async function clearState(userId: number): Promise<void> {
-  const sql = db();
-  await sql.query(`DELETE FROM bot_state WHERE user_id=$1`, [userId]);
+  await dbQuery(`DELETE FROM bot_state WHERE user_id=$1`, [userId]);
 }

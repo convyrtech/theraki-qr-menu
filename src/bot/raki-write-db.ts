@@ -2,7 +2,7 @@
 // размеры S–XXL (цена/кг) + рецепты по способам (Отварные/Жареные).
 // Мутации = read-modify-write документа + запись в audit_log. Ревалидацию
 // вызывает хендлер бота через onMenuChanged.
-import { neon } from "@neondatabase/serverless";
+import { dbQuery } from "./db";
 
 const BOARD_ID = "raki-board";
 
@@ -17,15 +17,9 @@ export type RakiBoardData = {
   footnotes: string[];
 };
 
-function db() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL не задан.");
-  return neon(url);
-}
 
 export async function getBoard(): Promise<RakiBoardData> {
-  const sql = db();
-  const rows = (await sql.query(`SELECT data FROM boards WHERE id=$1`, [BOARD_ID])) as unknown as {
+  const rows = (await dbQuery(`SELECT data FROM boards WHERE id=$1`, [BOARD_ID])) as unknown as {
     data: RakiBoardData;
   }[];
   if (!rows.length) throw new Error("Доска раков не найдена (запусти seed).");
@@ -38,12 +32,11 @@ async function save(
   action: string,
   details: Record<string, unknown>,
 ) {
-  const sql = db();
-  await sql.query(`UPDATE boards SET data=$2::jsonb, updated_at=now() WHERE id=$1`, [
+  await dbQuery(`UPDATE boards SET data=$2::jsonb, updated_at=now() WHERE id=$1`, [
     BOARD_ID,
     JSON.stringify(data),
   ]);
-  await sql.query(
+  await dbQuery(
     `INSERT INTO audit_log (actor_tg_id, action, entry_id, details) VALUES ($1,$2,NULL,$3::jsonb)`,
     [actorId, action, JSON.stringify(details)],
   );

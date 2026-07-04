@@ -4,13 +4,7 @@
 // восстановления — Фаза 4).
 // NB: без `server-only` — файл гоняется и CLI-раннерами бота (tsx), где этот
 // пакет-страж бросает исключение. Импортируется только серверным кодом.
-import { neon } from "@neondatabase/serverless";
-
-function db() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL не задан.");
-  return neon(url);
-}
+import { dbQuery } from "./db";
 
 export type ChapterBrief = {
   id: string;
@@ -40,8 +34,7 @@ export type EntryFull = EntryBrief & {
 
 /** Список глав с числом позиций и скрытых (для экрана /menu). */
 export async function listChapters(): Promise<ChapterBrief[]> {
-  const sql = db();
-  const rows = (await sql.query(
+  const rows = (await dbQuery(
     `SELECT c.id, c.title,
             COUNT(e.id)                            AS total,
             COUNT(e.id) FILTER (WHERE e.is_hidden) AS hidden
@@ -61,8 +54,7 @@ export async function listChapters(): Promise<ChapterBrief[]> {
 
 /** Позиции главы (включая скрытые, без удалённых). */
 export async function listEntries(chapterId: string): Promise<EntryBrief[]> {
-  const sql = db();
-  const rows = (await sql.query(
+  const rows = (await dbQuery(
     `SELECT id, name, price, unit, is_hidden
        FROM entries
       WHERE chapter_id = $1 AND NOT is_deleted
@@ -72,10 +64,18 @@ export async function listEntries(chapterId: string): Promise<EntryBrief[]> {
   return rows.map((r) => ({ id: r.id, name: r.name, price: r.price, unit: r.unit, isHidden: r.is_hidden }));
 }
 
+/** Название одной главы (лёгкий запрос вместо полного listChapters). */
+export async function getChapterMeta(chapterId: string): Promise<{ id: string; title: string } | null> {
+  const rows = (await dbQuery(`SELECT id, title FROM chapters WHERE id=$1`, [chapterId])) as unknown as {
+    id: string;
+    title: string;
+  }[];
+  return rows.length ? rows[0] : null;
+}
+
 /** Удалённые позиции (для команды восстановления /deleted). */
 export async function listDeleted(): Promise<{ id: number; name: string }[]> {
-  const sql = db();
-  const rows = (await sql.query(
+  const rows = (await dbQuery(
     `SELECT id, name FROM entries WHERE is_deleted ORDER BY updated_at DESC`,
   )) as unknown as { id: number; name: string }[];
   return rows.map((r) => ({ id: r.id, name: r.name }));
@@ -83,8 +83,7 @@ export async function listDeleted(): Promise<{ id: number; name: string }[]> {
 
 /** Полная карточка позиции (для экрана позиции в боте). */
 export async function getEntry(id: number): Promise<EntryFull | null> {
-  const sql = db();
-  const rows = (await sql.query(
+  const rows = (await dbQuery(
     `SELECT id, chapter_id, name, note, note_short, price, unit, abv, variants,
             signature, spicy, group_label, is_hidden
        FROM entries
