@@ -297,7 +297,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   // Whitelist: всё, кроме админов, вежливо отбиваем.
   bot.use(async (ctx, next) => {
     if (!isAdmin(ctx.from?.id)) {
-      if (ctx.callbackQuery) await ctx.answerCallbackQuery({ text: "Доступ только для персонала." });
+      if (ctx.callbackQuery) await ack(ctx, { text: "Доступ только для персонала." });
       else if (ctx.message) await ctx.reply("Этот бот управляет меню The Raki и доступен только персоналу.");
       return; // не передаём дальше
     }
@@ -327,7 +327,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   bot.callbackQuery("help", async (ctx) => {
     const kb = new InlineKeyboard().text("◀️ К разделам", "menu");
     await editTo(ctx, HELP_TEXT, kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.command("export", async (ctx) => {
@@ -353,21 +353,21 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   bot.callbackQuery("menu", async (ctx) => {
     const { text, keyboard } = await renderChapterList();
     await editTo(ctx, text, keyboard);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^ch:(.+)$/, async (ctx) => {
     const res = await renderEntryList(ctx.match![1]);
-    if (!res) return void ctx.answerCallbackQuery({ text: "Раздел не найден." });
+    if (!res) return void ack(ctx, { text: "Раздел не найден." });
     await editTo(ctx, res.text, res.keyboard);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^e:(\d+)$/, async (ctx) => {
     const res = await renderEntryCard(Number(ctx.match![1]));
-    if (!res) return void ctx.answerCallbackQuery({ text: "Позиция не найдена." });
+    if (!res) return void ack(ctx, { text: "Позиция не найдена." });
     await editTo(ctx, res.text, res.keyboard);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   // --- Операции «в один тап» ---------------------------------------------
@@ -378,9 +378,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       await setHidden(id, hide, ctx.from!.id);
       await changed();
       await rerenderCard(ctx, id);
-      await ctx.answerCallbackQuery({ text: hide ? "Скрыта — в стоп-листе." : "Возвращена в меню." });
+      await ack(ctx, { text: hide ? "Скрыта — в стоп-листе." : "Возвращена в меню." });
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -389,14 +389,14 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     const flag = ctx.match![2] as "signature" | "spicy";
     try {
       const cur = await getEntry(id);
-      if (!cur) return void ctx.answerCallbackQuery({ text: "Позиция не найдена." });
+      if (!cur) return void ack(ctx, { text: "Позиция не найдена." });
       const next = flag === "signature" ? !cur.signature : !cur.spicy;
       await setFlag(id, flag, next, ctx.from!.id);
       await changed();
       await rerenderCard(ctx, id);
-      await ctx.answerCallbackQuery({ text: "Метка обновлена." });
+      await ack(ctx, { text: "Метка обновлена." });
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -406,7 +406,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       .text("🗑 Да, удалить", `delyes:${id}`)
       .text("Отмена", `e:${id}`);
     await editTo(ctx, "Удалить позицию? Её можно будет восстановить командой /deleted.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^delyes:(\d+)$/, async (ctx) => {
@@ -415,13 +415,13 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       const cur = await getEntry(id);
       await softDelete(id, ctx.from!.id);
       await changed();
-      await ctx.answerCallbackQuery({ text: "Удалено." });
+      await ack(ctx, { text: "Удалено." });
       if (cur) {
         const res = await renderEntryList(cur.chapterId);
         if (res) await editTo(ctx, res.text, res.keyboard);
       }
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -439,10 +439,10 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     try {
       await restoreEntry(id, ctx.from!.id);
       await changed();
-      await ctx.answerCallbackQuery({ text: "Восстановлено." });
+      await ack(ctx, { text: "Восстановлено." });
       await showCard(ctx, id, "♻️ Восстановлено.");
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -457,14 +457,14 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
         ? "💰 Отправьте новую <b>цену</b> числом (например 2500)."
         : TEXT_PROMPTS[action].prompt;
     await editTo(ctx, prompt + "\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   // --- Раки: доска, размеры, рецепты ------------------------------------
   bot.callbackQuery("raki", async (ctx) => {
     const res = await renderRakiBoard();
     await editTo(ctx, res.text, res.keyboard);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^rsize:(.+)$/, async (ctx) => {
@@ -472,21 +472,21 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "rprice", null, { tier });
     const kb = new InlineKeyboard().text("Отмена", "raki");
     await editTo(ctx, `💰 Отправьте новую <b>цену за кг</b> для размера <b>${tier}</b> (число).\n\nИли /cancel.`, kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^rprep:(.+)$/, async (ctx) => {
     const res = await renderRakiPrep(ctx.match![1]);
-    if (!res) return void ctx.answerCallbackQuery({ text: "Способ не найден." });
+    if (!res) return void ack(ctx, { text: "Способ не найден." });
     await editTo(ctx, res.text, res.keyboard);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^rrec:(.+):(\d+)$/, async (ctx) => {
     const res = await renderRakiRecipe(ctx.match![1], Number(ctx.match![2]));
-    if (!res) return void ctx.answerCallbackQuery({ text: "Рецепт не найден." });
+    if (!res) return void ack(ctx, { text: "Рецепт не найден." });
     await editTo(ctx, res.text, res.keyboard);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^rrecspicy:(.+):(\d+)$/, async (ctx) => {
@@ -497,9 +497,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       await changed();
       const res = await renderRakiRecipe(prepId, idx);
       if (res) await editTo(ctx, res.text, res.keyboard);
-      await ctx.answerCallbackQuery({ text: "Обновлено." });
+      await ack(ctx, { text: "Обновлено." });
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -511,9 +511,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       await changed();
       const res = await renderRakiPrep(prepId);
       if (res) await editTo(ctx, res.text, res.keyboard);
-      await ctx.answerCallbackQuery({ text: "Рецепт удалён." });
+      await ack(ctx, { text: "Рецепт удалён." });
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -523,7 +523,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "rrecname", null, { prepId, idx });
     const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
     await editTo(ctx, "✏️ Отправьте новое <b>название рецепта</b>.\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^rrecsur:(.+):(\d+)$/, async (ctx) => {
@@ -532,7 +532,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "rrecsur", null, { prepId, idx });
     const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
     await editTo(ctx, "💵 Отправьте <b>надбавку</b> рецепта (например «+1 000 ₽»). «-» — убрать.\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^raddrec:(.+)$/, async (ctx) => {
@@ -540,15 +540,15 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "raddrec", null, { prepId });
     const kb = new InlineKeyboard().text("Отмена", `rprep:${prepId}`);
     await editTo(ctx, "➕ Отправьте <b>название нового рецепта</b>.\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   // --- Форматы подачи (variants) ----------------------------------------
   bot.callbackQuery(/^vars:(\d+)$/, async (ctx) => {
     const res = await renderVariants(Number(ctx.match![1]));
-    if (!res) return void ctx.answerCallbackQuery({ text: "Позиция не найдена." });
+    if (!res) return void ack(ctx, { text: "Позиция не найдена." });
     await editTo(ctx, res.text, res.keyboard);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^varadd:(\d+)$/, async (ctx) => {
@@ -556,7 +556,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "varadd", id);
     const kb = new InlineKeyboard().text("Отмена", `vars:${id}`);
     await editTo(ctx, "➕ Отправьте формат как <b>метка = цена</b>\nНапример: <code>0,5 кг = 1450</code>\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^varedit:(\d+):(\d+)$/, async (ctx) => {
@@ -565,7 +565,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "varedit", id, { idx });
     const kb = new InlineKeyboard().text("Отмена", `vars:${id}`);
     await editTo(ctx, "✏️ Отправьте новый формат как <b>метка = цена</b> (например <code>0,5 кг = 1450</code>).\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^vardel:(\d+):(\d+)$/, async (ctx) => {
@@ -576,9 +576,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       await changed();
       const res = await renderVariants(id);
       if (res) await editTo(ctx, res.text, res.keyboard);
-      await ctx.answerCallbackQuery({ text: "Формат удалён." });
+      await ack(ctx, { text: "Формат удалён." });
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -587,24 +587,24 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "addcatname", null);
     const kb = new InlineKeyboard().text("Отмена", "menu");
     await editTo(ctx, "➕ <b>Новая категория.</b>\nОтправьте <b>название</b>.\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   bot.callbackQuery(/^addcatgo:(cards|list)$/, async (ctx) => {
     const layout = ctx.match![1] as "cards" | "list";
     const st = await getState(ctx.from!.id);
     if (st?.action !== "addcatlayout" || !st.payload.name) {
-      return void ctx.answerCallbackQuery({ text: "Диалог устарел, начните заново." });
+      return void ack(ctx, { text: "Диалог устарел, начните заново." });
     }
     try {
       const id = await addChapter(String(st.payload.name), layout, ctx.from!.id);
       await clearState(ctx.from!.id);
       await changed();
-      await ctx.answerCallbackQuery({ text: "Категория создана." });
+      await ack(ctx, { text: "Категория создана." });
       const res = await renderEntryList(id);
       if (res) await editTo(ctx, "✓ Категория создана. Добавьте позиции:\n\n" + res.text, res.keyboard);
     } catch (e) {
-      await ctx.answerCallbackQuery({ text: errText(e) });
+      await ack(ctx, { text: errText(e) });
     }
   });
 
@@ -614,7 +614,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await setState(ctx.from!.id, "addname", null, { chapterId });
     const kb = new InlineKeyboard().text("Отмена", `ch:${chapterId}`);
     await editTo(ctx, "➕ <b>Новая позиция.</b>\nШаг 1/2 — отправьте <b>название</b>.\n\nИли /cancel.", kb);
-    await ctx.answerCallbackQuery();
+    await ack(ctx);
   });
 
   // Единственный обработчик текста: если у пользователя открыт диалог — применяем.
@@ -811,6 +811,17 @@ async function applyAddEntryInput(ctx: Context, st: Dlg, value: string, changed:
   await changed();
   await ctx.reply("✓ Позиция добавлена. Заполните остальное кнопками:");
   await showCard(ctx, id);
+}
+
+/** Ответ на callback (всплывашка) — best-effort: НИКОГДА не бросает. Просроченный
+ *  или битый callback иначе валит обработчик → вебхук 500 → Telegram ретраит и
+ *  при многих 500 отключает вебхук. Сам ack некритичен, его провал глотаем. */
+async function ack(ctx: Context, opts?: { text?: string }) {
+  try {
+    await ack(ctx, opts);
+  } catch (e) {
+    console.error("[bot] answerCallbackQuery не прошёл (некритично):", e);
+  }
 }
 
 /** Правит текущее сообщение (навигация «на месте»), с фолбэком на новое. */
