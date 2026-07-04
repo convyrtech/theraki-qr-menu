@@ -28,6 +28,31 @@ function db() {
   return neon(url);
 }
 
+// Ретраи на сетевых сбоях — как в bot/db.ts, но самодостаточно (этот модуль
+// импортит CLI-скрипт паритета на нативном node, без next/bot-зависимостей).
+// Без ретрая одиночный ConnectTimeout к Neon роняет чтение → гость видит
+// статический menu.ts (устаревшие цены). С ретраем фолбэк — только на реальный сбой.
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function isRetriable(e: unknown): boolean {
+  const s = String((e as { message?: string })?.message ?? e) + " " + String((e as { cause?: unknown })?.cause ?? "");
+  return /fetch failed|ConnectTimeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|network/i.test(s);
+}
+async function q<T>(text: string): Promise<T[]> {
+  const sql = db();
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return (await sql.query(text)) as unknown as T[];
+    } catch (e) {
+      lastErr = e;
+      if (!isRetriable(e)) throw e; // не-сетевую (битый SQL/нет таблицы) не повторяем
+      if (attempt === 2) break;
+      await sleep(300 * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
 type EntryRow = {
   name: string;
   note: string | null;
@@ -58,27 +83,26 @@ function rowToEntry(r: EntryRow): MenuEntry {
 
 /** Обычные главы (без раковой доски), видимые гостю. */
 export async function getChapters(): Promise<Chapter[]> {
-  const sql = db();
-  const chapterRows = (await sql.query(
-    `SELECT id, title, lede, origin, footnotes, layout
-       FROM chapters
-      WHERE NOT is_hidden
-      ORDER BY sort_order`,
-  )) as unknown as {
+  const chapterRows = await q<{
     id: string;
     title: string;
     lede: string | null;
     origin: string | null;
     footnotes: string[];
     layout: "cards" | "list";
-  }[];
+  }>(
+    `SELECT id, title, lede, origin, footnotes, layout
+       FROM chapters
+      WHERE NOT is_hidden
+      ORDER BY sort_order`,
+  );
 
-  const entryRows = (await sql.query(
+  const entryRows = await q<EntryRow & { chapter_id: string }>(
     `SELECT chapter_id, name, note, note_short, price, unit, abv, variants, signature, spicy, photo, group_label
        FROM entries
       WHERE NOT is_hidden AND NOT is_deleted
       ORDER BY chapter_id, sort_order`,
-  )) as unknown as (EntryRow & { chapter_id: string })[];
+  );
 
   const byChapter = new Map<string, MenuEntry[]>();
   for (const r of entryRows) {
@@ -99,10 +123,7 @@ export async function getChapters(): Promise<Chapter[]> {
 
 /** Раковая доска (jsonb-документ). */
 export async function getRakiBoard(): Promise<RakiBoard> {
-  const sql = db();
-  const rows = (await sql.query(`SELECT data FROM boards WHERE id = 'raki-board'`)) as unknown as {
-    data: RakiBoard;
-  }[];
+  const rows = await q<{ data: RakiBoard }>(`SELECT data FROM boards WHERE id = 'raki-board'`);
   if (!rows.length) throw new Error("boards: raki-board не найден (запусти seed).");
   return rows[0].data;
 }

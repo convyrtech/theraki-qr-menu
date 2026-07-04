@@ -35,7 +35,7 @@ export async function POST(req: Request): Promise<Response> {
   const comment = String(b.comment ?? "").trim().slice(0, 500);
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
-  const reason = await rateLimitReason(table, ip);
+  const reason = await rateLimitReason(table);
   if (reason) return Response.json({ error: reason }, { status: 429 });
   try {
     await logAndSendOrder({ table, comment, items, total }, ip);

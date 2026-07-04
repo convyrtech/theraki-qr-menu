@@ -6,7 +6,7 @@
 // revalidateTag("menu") — страница пересобирается за секунды, оставаясь
 // статически быстрой для гостей между правками.
 import { unstable_cache } from "next/cache";
-import { getMenu, type RakiBoard } from "./menu-db";
+import { getChapters, getRakiBoard, type RakiBoard } from "./menu-db";
 import { chapters as staticChapters, rakiChapter as staticRaki } from "@/data/menu";
 import type { Chapter } from "@/data/menu";
 
@@ -16,11 +16,21 @@ type MenuPayload = { chapters: Chapter[]; rakiChapter: RakiBoard; fallback: bool
 
 const loadMenu = unstable_cache(
   async (): Promise<MenuPayload> => {
-    const { chapters, rakiChapter } = await getMenu();
+    // Главы — основа меню. Их сбой (после ретраев) → бросаем → весь фолбэк на menu.ts.
+    const chapters = await getChapters();
     // Пустой список глав (случайный TRUNCATE / все скрыты / частичный сид) —
     // это НЕ валидное меню. Бросаем, чтобы сработал фолбэк на menu.ts и пустой
     // результат не закешировался как «правильное пустое меню».
     if (!chapters.length) throw new Error("БД вернула 0 глав — считаем меню недоступным.");
+    // Раки-доска РАЗВЯЗАНА от глав: отсутствие/сбой одной jsonb-строки не должен
+    // ронять всё меню в статику — берём статических раков, а живые главы отдаём как есть.
+    let rakiChapter: RakiBoard;
+    try {
+      rakiChapter = await getRakiBoard();
+    } catch (e) {
+      console.error("[menu] раки-доска недоступна — статика только для раков, главы живые:", e);
+      rakiChapter = staticRaki as RakiBoard;
+    }
     return { chapters, rakiChapter, fallback: false };
   },
   ["menu-payload-v1"],

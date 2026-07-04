@@ -15,21 +15,23 @@ const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").re
 const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 
 /**
- * Лимит частоты: по IP и по столу — не больше 8/мин каждого (одно устройство/стол
- * не зафлудит); глобально до 60/мин (потолок объёма, но НЕ блокирует остальные столы,
- * как раньше глобальные 15). Возвращает причину отказа или null (ок).
+ * Лимит частоты. ВАЖНО: НЕ по IP — в зале все гости за общим Wi-Fi под одним внешним
+ * IP, лимит по IP заблокировал бы весь зал. Защита:
+ *  - по столу: не больше 8/мин (один стол не зафлудит; живой стол столько и не заказывает);
+ *  - глобально: до 80/мин (потолок объёма от внешнего флуда, недостижим легально даже
+ *    в час пик небольшой раковарни). IP только пишем в журнал (форензика), не лимитируем.
+ * Возвращает причину отказа или null (ок).
  */
-export async function rateLimitReason(table: string, ip: string): Promise<string | null> {
+export async function rateLimitReason(table: string): Promise<string | null> {
   const rows = (await dbQuery(
     `SELECT
        (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute')::int AS total,
-       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute' AND ip = $1)::int AS by_ip,
-       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute' AND table_no = $2)::int AS by_table`,
-    [ip || null, table || null],
-  )) as unknown as { total: number; by_ip: number; by_table: number }[];
+       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute' AND table_no = $1)::int AS by_table`,
+    [table || null],
+  )) as unknown as { total: number; by_table: number }[];
   const r = rows[0];
-  if (r.by_ip >= 8 || r.by_table >= 8) return "Слишком часто с этого устройства. Подождите минуту.";
-  if (r.total >= 60) return "Кухня перегружена заказами. Попробуйте через минуту или позовите официанта.";
+  if (table && r.by_table >= 8) return "С этого стола заказы идут слишком часто. Подождите минуту.";
+  if (r.total >= 80) return "Слишком много заказов сейчас. Попробуйте через минуту или позовите официанта.";
   return null;
 }
 

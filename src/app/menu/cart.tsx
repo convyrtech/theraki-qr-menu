@@ -219,7 +219,9 @@ export function CartBar() {
       setDone(true);
       setOpen(false);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Ошибка отправки.");
+      // Обрыв связи fetch бросает TypeError («Failed to fetch») — гостю по-русски.
+      const offline = e instanceof TypeError || (typeof navigator !== "undefined" && !navigator.onLine);
+      setErr(offline ? "Нет связи. Проверьте интернет и повторите." : e instanceof Error ? e.message : "Ошибка отправки.");
     } finally {
       setSending(false);
     }

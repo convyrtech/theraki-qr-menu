@@ -172,7 +172,11 @@ const isSauceNote = (s: string) => /^Соусы на выбор:/.test(s);
 
 // Разрядка тысяч НЕРАЗРЫВНЫМ пробелом: узкий U+202F из formatNumber на мелких
 // кеглях читается «слитно» («1350 ₽») — замечание судьи-типографа.
-const fmtP = (n: number) => formatNumber(n).replace(/ /g, " ");
+const fmtP = (n: number) => (Number.isFinite(n) ? formatNumber(n).replace(/ /g, " ") : "—");
+// Битое фото (photo есть, но 404) — прячем сломанную картинку, а не «сломанный» глиф.
+const hideBrokenImg = (ev: { currentTarget: HTMLImageElement }) => {
+  ev.currentTarget.style.display = "none";
+};
 
 // Короткие ярлыки для ленты-пилюль (заголовки секций остаются полными, из дока)
 const NAV_LABEL: Record<string, string> = {
@@ -325,7 +329,8 @@ const DISH_PHOTO: Record<string, string> = {
 
 /* ---------- РАКИ: 2 карточки (отварные/жареные); размеры+рецепты — в детали по тапу ---------- */
 function RakiBlock({ raki, onOpen }: { raki: RakiData; onOpen: (p: RakiPreparation) => void }) {
-  const RAKI_FROM = Math.min(...raki.sizes.map((s) => s.price));
+  // Пустые размеры (очистили доску) → не считаем Math.min пустого (=∞); прячем «от … ₽».
+  const RAKI_FROM = raki.sizes.length ? Math.min(...raki.sizes.map((s) => s.price)) : null;
   return (
     <div className="mn__cards">
       {raki.preparations.map((p) => (
@@ -337,14 +342,14 @@ function RakiBlock({ raki, onOpen }: { raki: RakiData; onOpen: (p: RakiPreparati
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            className="mn__card-photo"
+            className="mn__card-photo" onError={hideBrokenImg}
             src={p.id === "boiled" ? "/images/menu-raki-boiled.webp" : "/images/menu-raki-fried.webp"}
             alt={"Раки " + p.title.toLowerCase()}
             loading="lazy"
           />
           <div className="mn__card-body">
             <h3 className="mn__card-name">Раки {p.title.toLowerCase()}</h3>
-            <span className="mn__card-price">от {fmtP(RAKI_FROM)} ₽ / кг</span>
+            {RAKI_FROM != null ? <span className="mn__card-price">от {fmtP(RAKI_FROM)} ₽ / кг</span> : null}
             <span className="mn__card-meta">размеры S–XXL</span>
             <p className="mn__card-note">{p.recipes.map((r) => r.name).join(" · ")}</p>
           </div>
@@ -395,7 +400,7 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="mn__detail-photo" src={photo} alt={"Раки " + prep.title.toLowerCase()} />
+        <img className="mn__detail-photo" onError={hideBrokenImg} src={photo} alt={"Раки " + prep.title.toLowerCase()} />
         <h3 className="mn__detail-name">Раки {prep.title.toLowerCase()}</h3>
 
         <div className="mn__raki-pick">Выберите размер:</div>
@@ -427,7 +432,7 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
             <button
               type="button"
               className={"mn__recipe mn__recipe--pick" + (r.spicy ? " is-spicy" : "") + (recipeIdx === i ? " is-selected" : "")}
-              key={r.name}
+              key={r.name + "|" + i}
               onClick={() => setRecipeIdx(i)}
             >
               {r.name}
@@ -970,7 +975,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                   const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
                   const hasDrinkLogo = sec.id === "drinks" && Boolean(drinkLogo(e));
                   return (
-                    <Fragment key={e.name}>
+                    <Fragment key={e.name + "|" + i}>
                       {showGroup ? (
                         <div className="mn__group">
                           {DRINK_GROUP_ICON[e.group!] ? (
@@ -1012,7 +1017,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                 const photo = e.photo ?? DISH_PHOTO[e.name];
                 const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
                 return (
-                  <Fragment key={e.name}>
+                  <Fragment key={e.name + "|" + i}>
                   {showGroup ? <div className="mn__group">{e.group}</div> : null}
                   <div
                     className={"mn__card" + (photo ? " has-photo" : "")}
@@ -1028,7 +1033,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                   >
                     {photo ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img className="mn__card-photo" src={photo} alt={e.name} loading="lazy" />
+                      <img className="mn__card-photo" onError={hideBrokenImg} src={photo} alt={e.name} loading="lazy" />
                     ) : (
                       <div className="mn__card-ph" aria-hidden>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1112,7 +1117,7 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
         </button>
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className="mn__detail-photo" src={photo} alt={entry.name} />
+          <img className="mn__detail-photo" onError={hideBrokenImg} src={photo} alt={entry.name} />
         ) : null}
         <h3 className="mn__detail-name">
           {typo(entry.name)}
@@ -1129,8 +1134,8 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
         </div>
         {entry.variants?.length ? (
           <div className="mn__detail-variants">
-            {entry.variants.map((v) => (
-              <span className="mn__detail-variant" key={v.label}>
+            {entry.variants.map((v, i) => (
+              <span className="mn__detail-variant" key={v.label + "|" + i}>
                 {v.label} — {fmtP(v.price) + " ₽"}
               </span>
             ))}
