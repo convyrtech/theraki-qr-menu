@@ -5,6 +5,8 @@
 // NB: без `server-only` — гоняется CLI-раннерами (tsx); импортируется только
 // серверным кодом (webhook route) и dev/simulate-скриптами.
 import { Bot, InlineKeyboard, InputFile, type Context } from "grammy";
+import sharp from "sharp";
+import { savePhotoBytes, deletePhotoBytes } from "./photo-db";
 import { listChapters, listEntries, getEntry, listDeleted, getChapterMeta, exportAll } from "./menu-admin-db";
 import {
   setHidden,
@@ -554,8 +556,8 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     const kb = new InlineKeyboard().text("Отмена", `e:${id}`);
     await editTo(
       ctx,
-      "🖼 Пришлите <b>ссылку на фото</b> (начинается с <code>https://</code>).\n" +
-        "Чтобы <b>убрать</b> фото — отправьте «-».\n\nИли /cancel.",
+      "🖼 Пришлите <b>фото</b> блюда прямо сюда (можно как файл — качество лучше).\n" +
+        "Бот сам сожмёт его для сайта. Чтобы <b>убрать</b> фото — отправьте «-».\n\nИли /cancel.",
       kb,
     );
     await ack(ctx);
@@ -635,6 +637,25 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
+  // Приём фото/файла: работает, когда открыт диалог «🖼 Фото». Бот скачивает,
+  // сжимает в WebP и кладёт в БД; entry.photo = внутренний версионированный URL.
+  bot.on(["message:photo", "message:document"], async (ctx) => {
+    const st = await getState(ctx.from!.id);
+    if (st?.action !== "photo" || st.entryId == null) {
+      return void ctx.reply("Чтобы поставить фото — откройте блюдо → «🖼 Фото», затем пришлите картинку.");
+    }
+    const eid = st.entryId;
+    try {
+      await ctx.reply("Загружаю фото…");
+      await applyPhotoUpload(ctx, eid);
+      await clearState(ctx.from!.id);
+      await changed();
+      await showCard(ctx, eid, "✓ Фото обновлено.");
+    } catch (e) {
+      await ctx.reply("Не получилось: " + errText(e) + "\nПришлите картинку ещё раз или /cancel.");
+    }
+  });
+
   // Единственный обработчик текста: если у пользователя открыт диалог — применяем.
   bot.on("message:text", async (ctx) => {
     const st = await getState(ctx.from!.id);
@@ -701,8 +722,10 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
         }
         await setPrice(st.entryId, price, ctx.from!.id);
       } else if (st.action === "photo") {
-        // «-» убирает фото; иначе ждём https-ссылку (проверка формата в setPhoto).
+        // Текстом: «-» убирает фото, либо внешняя https-ссылка. И то, и другое
+        // означает «не загруженный файл» → чистим сохранённые байты, если были.
         const url = value === "-" ? null : value;
+        await deletePhotoBytes(st.entryId);
         await setPhoto(st.entryId, url, ctx.from!.id);
         // Превью: показываем присланное фото, чтобы владелец видел, что ссылка
         // рабочая (не вставлял вслепую). Если Telegram не загрузил — предупреждаем.
@@ -805,6 +828,26 @@ async function applyRakiInput(
 }
 
 type Dlg = { action: string; entryId: number | null; payload: Record<string, unknown> };
+
+/** Скачать присланное фото/файл, сжать в WebP, сохранить в БД, привязать к позиции. */
+async function applyPhotoUpload(ctx: Context, entryId: number) {
+  const token = process.env.TG_BOT_TOKEN;
+  if (!token) throw new Error("нет токена бота.");
+  const file = await ctx.getFile(); // работает и для photo, и для document
+  if (!file.file_path) throw new Error("не удалось получить файл.");
+  const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+  if (!res.ok) throw new Error("не удалось скачать файл из Telegram.");
+  const input = Buffer.from(await res.arrayBuffer());
+  // rotate() — учесть EXIF-ориентацию телефона; ресайз до 1000px; WebP q80.
+  const webp = await sharp(input)
+    .rotate()
+    .resize({ width: 1000, withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toBuffer();
+  await savePhotoBytes(entryId, webp);
+  // Версионируем URL (?v=…), чтобы новая картинка не бралась из кэша по старому.
+  await setPhoto(entryId, `/api/photo/${entryId}/?v=${Date.now()}`, ctx.from!.id);
+}
 
 /** Применить ввод формата подачи (varadd/varedit). */
 async function applyVariantInput(ctx: Context, st: Dlg, value: string, changed: () => Promise<void>) {

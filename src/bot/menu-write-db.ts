@@ -64,8 +64,9 @@ export async function setText(
 /** Фото позиции по ссылке (или null — убрать). URL должен быть https:// —
  *  иначе картинка не загрузится на https-сайте (mixed content). */
 export async function setPhoto(entryId: number, url: string | null, actorId: number): Promise<void> {
-  if (url !== null && !/^https:\/\/\S+$/i.test(url)) {
-    throw new Error("Нужна ссылка вида https://… (http и без ссылки не подойдут).");
+  // Разрешаем внутренний путь (/api/photo/… — загруженное фото) или внешний https-URL.
+  if (url !== null && !/^(https:\/\/|\/)\S+$/i.test(url)) {
+    throw new Error("Нужно фото или ссылка https://…");
   }
   const rows = (await dbQuery(`SELECT name, photo FROM entries WHERE id=$1 AND NOT is_deleted`, [
     entryId,

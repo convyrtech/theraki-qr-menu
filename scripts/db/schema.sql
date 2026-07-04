@@ -61,6 +61,16 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details      jsonb NOT NULL DEFAULT '{}'    -- {field, old, new, name}
 );
 
+-- Фото позиций, загруженные через бота (отправкой картинки). Храним WebP как
+-- base64-текст (проще, чем bytea через HTTP-драйвер); отдаём роутом /api/photo/[id].
+-- ON DELETE CASCADE — при удалении позиции фото уходит вместе с ней.
+CREATE TABLE IF NOT EXISTS photos (
+  entry_id      int PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+  b64           text NOT NULL,
+  content_type  text NOT NULL DEFAULT 'image/webp',
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
 -- Идемпотентность: обработанные апдейты Telegram. Повторная доставка (вебхук
 -- не ответил 200 вовремя) не создаст дубль позиции/рецепта.
 CREATE TABLE IF NOT EXISTS processed_updates (
