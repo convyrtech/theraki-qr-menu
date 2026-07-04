@@ -74,9 +74,15 @@ function buildSections(chapters: Chapter[], raki: RakiData) {
     ...chapters.filter((c) => !DRINK_IDS.includes(c.id)),
     DRINKS_SECTION,
   ];
-  return MENU_ORDER.map((id) => RAW_SECTIONS.find((section) => section.id === id)).filter(
+  // Сначала — в заданном порядке MENU_ORDER; затем ДОБАВЛЯЕМ в конец любые главы
+  // из БД, которых нет в MENU_ORDER (иначе новый/переименованный раздел молча
+  // исчезал бы с витрины, оставаясь в боте и БД).
+  const ordered = MENU_ORDER.map((id) => RAW_SECTIONS.find((section) => section.id === id)).filter(
     (section): section is NonNullable<typeof section> => Boolean(section),
   );
+  const known = new Set(MENU_ORDER);
+  const extra = RAW_SECTIONS.filter((section) => !known.has(section.id));
+  return [...ordered, ...extra];
 }
 
 // Категории-списки (без фото): напитки/соусы/гарниры — компактный текст, не карточки.

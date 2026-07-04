@@ -1,6 +1,7 @@
-// Сид: src/data/menu.ts → БД, без потерь. Идемпотентно (чистит контент и
-// вставляет заново; audit_log не трогает).
-// Запуск: node --env-file=.env.local scripts/db/seed.ts
+// Сид: src/data/menu.ts → БД. ПЕРВОНАЧАЛЬНАЯ загрузка. ⚠️ TRUNCATE стирает ВСЁ
+// (в т.ч. правки владельца через бота — БД теперь единственный источник меню).
+// Поэтому: отказ, если в БД уже есть позиции, без явного флага --force.
+// Запуск: node --env-file=.env.local scripts/db/seed.ts [--force]
 import { neon } from "@neondatabase/serverless";
 import { chapters, rakiChapter } from "../../src/data/menu.ts";
 import { firstSentence } from "../../src/lib/text.ts";
@@ -8,6 +9,20 @@ import { firstSentence } from "../../src/lib/text.ts";
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL не задан (node --env-file=.env.local …).");
 const sql = neon(url);
+
+// Страж потери данных: не пересеивать заполненную БД без --force.
+const force = process.argv.includes("--force");
+const existing = (await sql.query(
+  `SELECT (SELECT count(*) FROM entries)::int AS entries,
+          (SELECT count(*) FROM audit_log)::int AS edits`,
+)) as unknown as { entries: number; edits: number }[];
+if (!force && (existing[0].entries > 0 || existing[0].edits > 0)) {
+  throw new Error(
+    `ОТКАЗ: в БД уже есть данные (${existing[0].entries} позиций, ${existing[0].edits} записей в журнале).\n` +
+      `Повторный сид СОТРЁТ все правки владельца и перенумерует id.\n` +
+      `Если это точно нужно (первичная переналадка) — запусти с флагом --force.`,
+  );
+}
 
 // Чистим контент. RESTART IDENTITY — чтобы entry.id были стабильны между сидами.
 await sql.query("TRUNCATE entries, chapters, boards RESTART IDENTITY CASCADE");

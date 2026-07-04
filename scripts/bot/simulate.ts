@@ -157,6 +157,14 @@ async function main() {
   await bot.handleUpdate(cb(ADMIN, `name:${id}`));
   await bot.handleUpdate(msg(ADMIN, "ТЕСТ-ИМЯ"));
   await check("после диалога названия: name=ТЕСТ-ИМЯ", (await getEntry(id))!.name === "ТЕСТ-ИМЯ");
+
+  // Название с HTML-символами: карточка должна отрендериться без сбоя (экранирование)
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, `name:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "Раки <XL> & острее"));
+  await bot.handleUpdate(cb(ADMIN, `e:${id}`)); // открыть карточку — не должно упасть
+  const cardText = calls.find((c) => c.text && c.text.includes("острее"))?.text ?? "";
+  await check("HTML-символы экранированы в карточке (&lt;XL&gt; &amp;)", cardText.includes("&lt;XL&gt;") && cardText.includes("&amp;"));
   await bot.handleUpdate(cb(ADMIN, `name:${id}`));
   await bot.handleUpdate(msg(ADMIN, before.name));
   await check("название возвращено", (await getEntry(id))!.name === before.name);

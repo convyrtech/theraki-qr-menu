@@ -47,6 +47,13 @@ export function isAdmin(userId: number | undefined): boolean {
 // --- Форматирование -----------------------------------------------------
 const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 
+// Экранирование для parse_mode:"HTML". ОБЯЗАТЕЛЬНО для любых значений из БД/
+// ввода владельца (название/описание/грамовка/метка формата/рецепт): символы
+// < > & иначе ломают разбор entities → Telegram 400 → карточка не открывается.
+// Кнопкам (InlineKeyboard.text) экранирование НЕ нужно — это не HTML.
+const esc = (s: string | null | undefined): string =>
+  (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 /** Экран /menu: список глав с числом позиций и скрытых. */
 export async function renderChapterList(): Promise<{ text: string; keyboard: InlineKeyboard }> {
   const chapters = await listChapters();
@@ -79,7 +86,7 @@ export async function renderEntryList(
   }
   kb.text("➕ Добавить позицию", `addentry:${chapterId}`).row();
   kb.text("◀️ К разделам", "menu");
-  const text = `<b>${ch.title}</b>\nПозиций: ${ch.total}${ch.hidden ? ` · скрыто ${ch.hidden}` : ""}`;
+  const text = `<b>${esc(ch.title)}</b>\nПозиций: ${ch.total}${ch.hidden ? ` · скрыто ${ch.hidden}` : ""}`;
   return { text, keyboard: kb };
 }
 
@@ -90,17 +97,17 @@ export async function renderEntryCard(
   const e = await getEntry(entryId);
   if (!e) return null;
   const lines = [
-    `${e.isHidden ? "⛔ <b>СКРЫТА (в стоп-листе)</b>\n" : ""}<b>${e.name}</b>`,
+    `${e.isHidden ? "⛔ <b>СКРЫТА (в стоп-листе)</b>\n" : ""}<b>${esc(e.name)}</b>`,
     ``,
-    `💰 Цена: <b>${rub(e.price)}</b>${e.unit ? ` / ${e.unit}` : ""}`,
+    `💰 Цена: <b>${rub(e.price)}</b>${e.unit ? ` / ${esc(e.unit)}` : ""}`,
   ];
   if (e.variants.length) {
-    lines.push(`📐 Форматы: ${e.variants.map((v) => `${v.label} — ${rub(v.price)}`).join(" · ")}`);
+    lines.push(`📐 Форматы: ${e.variants.map((v) => `${esc(v.label)} — ${rub(v.price)}`).join(" · ")}`);
   }
-  if (e.abv) lines.push(`🍺 Крепость: ${e.abv}`);
+  if (e.abv) lines.push(`🍺 Крепость: ${esc(e.abv)}`);
   lines.push(`🏷 Метки: ${e.signature ? "◆ фирменная " : ""}${e.spicy ? "🌶 острая" : ""}`.trimEnd());
-  if (e.noteShort) lines.push(``, `<b>Кратко:</b> <i>${e.noteShort}</i>`);
-  if (e.note) lines.push(``, `<b>Подробно:</b> <i>${e.note}</i>`);
+  if (e.noteShort) lines.push(``, `<b>Кратко:</b> <i>${esc(e.noteShort)}</i>`);
+  if (e.note) lines.push(``, `<b>Подробно:</b> <i>${esc(e.note)}</i>`);
 
   const kb = new InlineKeyboard()
     .text(e.isHidden ? "♻️ Вернуть в меню" : "🙈 Скрыть (стоп-лист)", `${e.isHidden ? "unhide" : "hide"}:${e.id}`)
@@ -152,10 +159,10 @@ export async function renderRakiPrep(
   const p = b.preparations.find((x) => x.id === prepId);
   if (!p) return null;
   const kb = new InlineKeyboard();
-  const lines = [`🍳 <b>Раки ${p.title.toLowerCase()}</b>`, "", "Рецепты — тап, чтобы редактировать:"];
+  const lines = [`🍳 <b>Раки ${esc(p.title.toLowerCase())}</b>`, "", "Рецепты — тап, чтобы редактировать:"];
   p.recipes.forEach((r, i) => {
-    const marks = `${r.surcharge ? " " + r.surcharge : ""}${r.spicy ? " 🌶" : ""}`;
-    lines.push(`  ${i + 1}. ${r.name}${marks}`);
+    const marks = `${r.surcharge ? " " + esc(r.surcharge) : ""}${r.spicy ? " 🌶" : ""}`;
+    lines.push(`  ${i + 1}. ${esc(r.name)}${marks}`);
     kb.text(`${i + 1}. ${r.name}`, `rrec:${prepId}:${i}`).row();
   });
   kb.text("➕ Добавить рецепт", `raddrec:${prepId}`).row();
@@ -173,9 +180,9 @@ export async function renderRakiRecipe(
   const r = p?.recipes[idx];
   if (!p || !r) return null;
   const lines = [
-    `🍳 <b>${r.name}</b>`,
-    `Способ: раки ${p.title.toLowerCase()}`,
-    `Надбавка: ${r.surcharge ?? "—"}`,
+    `🍳 <b>${esc(r.name)}</b>`,
+    `Способ: раки ${esc(p.title.toLowerCase())}`,
+    `Надбавка: ${r.surcharge ? esc(r.surcharge) : "—"}`,
     `Острый: ${r.spicy ? "🌶 да" : "нет"}`,
   ];
   const kb = new InlineKeyboard()
@@ -197,10 +204,10 @@ export async function renderVariants(
   const e = await getEntry(entryId);
   if (!e) return null;
   const kb = new InlineKeyboard();
-  const lines = [`📐 <b>Форматы подачи</b> — ${e.name}`, ""];
+  const lines = [`📐 <b>Форматы подачи</b> — ${esc(e.name)}`, ""];
   if (e.variants.length) {
     e.variants.forEach((v, i) => {
-      lines.push(`  ${i + 1}. ${v.label} — ${rub(v.price)}`);
+      lines.push(`  ${i + 1}. ${esc(v.label)} — ${rub(v.price)}`);
       kb.text(`✏️ ${v.label}`, `varedit:${entryId}:${i}`).text("🗑", `vardel:${entryId}:${i}`).row();
     });
   } else {
@@ -673,7 +680,7 @@ async function applyAddEntryInput(ctx: Context, st: Dlg, value: string, changed:
     const name = value.trim();
     if (!name) return void ctx.reply("Название пустое. Ещё раз или /cancel.");
     await setState(uid, "addprice", null, { chapterId, name });
-    return void ctx.reply(`Шаг 2/2 — отправьте <b>цену</b> числом для «${name}».\n\nИли /cancel.`, {
+    return void ctx.reply(`Шаг 2/2 — отправьте <b>цену</b> числом для «${esc(name)}».\n\nИли /cancel.`, {
       parse_mode: "HTML",
     });
   }

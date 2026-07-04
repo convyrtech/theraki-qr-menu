@@ -17,6 +17,10 @@ type MenuPayload = { chapters: Chapter[]; rakiChapter: RakiBoard; fallback: bool
 const loadMenu = unstable_cache(
   async (): Promise<MenuPayload> => {
     const { chapters, rakiChapter } = await getMenu();
+    // Пустой список глав (случайный TRUNCATE / все скрыты / частичный сид) —
+    // это НЕ валидное меню. Бросаем, чтобы сработал фолбэк на menu.ts и пустой
+    // результат не закешировался как «правильное пустое меню».
+    if (!chapters.length) throw new Error("БД вернула 0 глав — считаем меню недоступным.");
     return { chapters, rakiChapter, fallback: false };
   },
   ["menu-payload-v1"],
