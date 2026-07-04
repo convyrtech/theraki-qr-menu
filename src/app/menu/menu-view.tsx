@@ -9,18 +9,24 @@ import {
   type Chapter,
 } from "@/data/menu";
 import { firstSentence } from "@/lib/text";
-import { CartProvider, CartBar, AddToCart } from "./cart";
+import { CartProvider, CartBar, AddToCart, useCart } from "./cart";
 import "./menu.css";
 
-// B1: заказуемы обычные позиции с фикс-ценой (без веса/вариантов; раки — отдельно, B3).
-const orderable = (e: MenuEntry): boolean => e.unit !== "кг" && !(e.variants && e.variants.length);
-const cartItemOf = (e: MenuEntry) => ({
-  key: e.name,
-  label: e.name,
-  unitPrice: e.price,
-  step: 1,
-  unit: "шт" as const,
-});
+// Заказуемы: весовые (unit «кг» — вес шаг 0,5, мин 1) и обычные фикс-цена без
+// вариантов. Позиции с вариантами (напитки-форматы) пока не заказуемы (B4).
+// Раки — отдельный конфигуратор (RakiDetail), тут не участвуют.
+const orderable = (e: MenuEntry): boolean => e.unit === "кг" || !(e.variants && e.variants.length);
+const cartItemOf = (e: MenuEntry) => {
+  const weight = e.unit === "кг";
+  return {
+    key: e.name,
+    label: e.name,
+    unitPrice: e.price,
+    step: weight ? 0.5 : 1,
+    min: 1,
+    unit: (weight ? "кг" : "шт") as "кг" | "шт",
+  };
+};
 
 // Данные меню приходят пропсами (БД через getMenuForPage() или фолбэк на
 // menu.ts). Секции «Раки» и «Напитки» собираются из этих данных в buildSections.
@@ -346,48 +352,111 @@ function RakiBlock({ raki, onOpen }: { raki: RakiData; onOpen: (p: RakiPreparati
   );
 }
 
-/* ---------- РАКИ деталь: доска размеров S–XXL + рецепты выбранного способа ---------- */
+/* ---------- РАКИ деталь-КОНФИГУРАТОР: размер + рецепт + вес → в заказ ---------- */
 function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPreparation; onClose: () => void }) {
   const photo = prep.id === "boiled" ? "/images/menu-raki-boiled.webp" : "/images/menu-raki-fried.webp";
+  const { put } = useCart();
+  const [tier, setTier] = useState<string | null>(null); // размер (обязателен)
+  const [recipeIdx, setRecipeIdx] = useState(0); // рецепт (по умолчанию первый)
+  const [weight, setWeight] = useState(1); // кг, мин 1, шаг 0,5
+  const [added, setAdded] = useState(false);
+
+  const size = raki.sizes.find((s) => s.tier === tier);
+  const recipe = prep.recipes[recipeIdx];
+  const sum = size ? Math.round(size.price * weight) : 0;
+  const kg = (w: number) => `${w} кг`.replace(".", ",");
+
+  function addToOrder() {
+    if (!size) return;
+    const sur = recipe?.surcharge ? ` (${recipe.surcharge})` : "";
+    put({
+      key: `raki:${prep.id}:${size.tier}:${recipeIdx}`,
+      label: `Раки ${prep.title.toLowerCase()} · ${size.tier} · ${recipe.name}${sur}`,
+      unitPrice: size.price,
+      step: 0.5,
+      min: 1,
+      unit: "кг",
+      qty: weight,
+    });
+    setAdded(true);
+    setTimeout(onClose, 900);
+  }
+
   return (
     <div className="mn__detail" role="dialog" aria-modal="true">
       <button className="mn__detail-bg" type="button" aria-label="Закрыть" onClick={onClose} />
-      <div className="mn__detail-card">
+      <div className="mn__detail-card mn__detail-card--raki">
         <button className="mn__detail-x" type="button" aria-label="Закрыть" onClick={onClose}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="mn__detail-photo" src={photo} alt={"Раки " + prep.title.toLowerCase()} />
         <h3 className="mn__detail-name">Раки {prep.title.toLowerCase()}</h3>
+
+        <div className="mn__raki-pick">Выберите размер:</div>
         <div className="mn__raki-board">
           <div className="mn__raki-head">
             <span>Размер</span>
             <span>шт / кг</span>
-            <span>1 кг</span>
-            <span>0,5 кг</span>
+            <span>цена / кг</span>
           </div>
           {raki.sizes.map((s, idx) => (
-            <div className="mn__raki-size" key={s.tier}>
+            <button
+              type="button"
+              className={"mn__raki-size mn__raki-size--pick" + (tier === s.tier ? " is-selected" : "")}
+              key={s.tier}
+              onClick={() => setTier(s.tier)}
+            >
               <span className="mn__raki-tier" style={{ fontSize: `${20 + idx * 3}px` }}>{s.tier}</span>
               <span className="mn__raki-pieces">{s.countPerKg}</span>
               <span className="mn__raki-price">{fmtP(s.price) + " ₽"}</span>
-              <span className="mn__raki-price">{fmtP(s.price / 2) + " ₽"}</span>
-            </div>
+            </button>
           ))}
         </div>
+
         <div className="mn__prep-head mn__prep-head--detail">
-          <span className="mn__prep-title">{prep.recipesLabel}</span>
+          <span className="mn__prep-title">{prep.recipesLabel}:</span>
         </div>
         <div className="mn__recipes">
-          {prep.recipes.map((r) => (
-            <span className={"mn__recipe" + (r.spicy ? " is-spicy" : "")} key={r.name}>
+          {prep.recipes.map((r, i) => (
+            <button
+              type="button"
+              className={"mn__recipe mn__recipe--pick" + (r.spicy ? " is-spicy" : "") + (recipeIdx === i ? " is-selected" : "")}
+              key={r.name}
+              onClick={() => setRecipeIdx(i)}
+            >
               {r.name}
               {r.surcharge ? <i className="mn__recipe-sur">{r.surcharge}</i> : null}
               {r.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
               {!r.spicy && r.name.toLowerCase().includes("помидор")
                 ? <span className="mn__mark" title="томат">{TomatoIcon}</span> : null}
-            </span>
+            </button>
           ))}
+        </div>
+
+        {tier ? (
+          <div className="mn__raki-weight">
+            <span>Вес:</span>
+            <div className="mn-cart-step">
+              <button type="button" className="mn-cart-step-btn" onClick={() => setWeight((w) => Math.max(1, Math.round((w - 0.5) * 2) / 2))} aria-label="Меньше">
+                −
+              </button>
+              <span className="mn-cart-step-q">{kg(weight)}</span>
+              <button type="button" className="mn-cart-step-btn" onClick={() => setWeight((w) => Math.round((w + 0.5) * 2) / 2)} aria-label="Больше">
+                +
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mn__raki-foot">
+          {added ? (
+            <div className="mn__raki-added">✓ Добавлено в заказ</div>
+          ) : (
+            <button type="button" className="mn-cart-send" disabled={!size} onClick={addToOrder}>
+              {size ? `Добавить в заказ · ${fmtP(sum)} ₽` : "Сначала выберите размер"}
+            </button>
+          )}
         </div>
       </div>
     </div>

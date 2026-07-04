@@ -1025,3 +1025,29 @@ body:has(.mn) { background: #ffffff; }
 .mn-cart-toast-more { opacity: .85; }
 /* карточка теперь div role=button — сохраняем указатель и убираем выделение при тапе */
 .mn__card[role="button"] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+/* ===== Раки-конфигуратор (заказ) ===== */
+.mn__detail-card--raki { padding-bottom: 20px; }
+.mn__raki-pick { font: 600 13px/1 "Manrope", system-ui, sans-serif; color: #2f66c0; margin: 10px 0 4px; }
+/* доска теперь 3 колонки (размер · шт/кг · цена/кг) */
+.mn__raki-head { grid-template-columns: minmax(44px, max-content) minmax(56px, 1fr) auto !important; }
+.mn__raki-size--pick {
+  grid-template-columns: minmax(44px, max-content) minmax(56px, 1fr) auto !important;
+  width: 100%; appearance: none; background: #fff; cursor: pointer; text-align: left;
+  border: 1.5px solid transparent; border-radius: 12px; padding: 8px 12px; margin-bottom: 4px;
+  transition: border-color .12s, background .12s;
+}
+.mn__raki-size--pick.is-selected { border-color: #2f66c0; background: #eef4fc; }
+.mn__recipe--pick { appearance: none; cursor: pointer; border: 1.5px solid #cbb994; }
+.mn__recipe--pick.is-selected { border-color: #2f66c0; background: #2f66c0; color: #fff; }
+.mn__recipe--pick.is-selected .mn__recipe-sur { color: #e6eefb; }
+.mn__raki-weight {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 14px 0 4px; font: 600 15px/1 "Manrope", system-ui, sans-serif; color: #10233b;
+}
+.mn__raki-foot { margin-top: 14px; }
+.mn__raki-foot .mn-cart-send { width: 100%; }
+.mn__raki-added {
+  text-align: center; background: #1f5f3f; color: #eafff2; border-radius: 14px; padding: 15px;
+  font: 700 16px/1 "Manrope", system-ui, sans-serif;
+}

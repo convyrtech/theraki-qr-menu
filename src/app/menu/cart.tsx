@@ -9,7 +9,8 @@ export type CartLine = {
   key: string;
   label: string; // как показать в заказе
   unitPrice: number; // цена за единицу (за шт / за кг)
-  step: number; // шаг количества (1 для штук, 0.5 для кг — B2)
+  step: number; // шаг количества (1 для штук, 0.5 для кг)
+  min: number; // минимум (1 шт / 1 кг); ниже — позиция убирается
   unit: "шт" | "кг"; // как считать/подписывать
   qty: number;
 };
@@ -18,6 +19,7 @@ type CartCtx = {
   lines: Record<string, CartLine>;
   table: string;
   add: (item: Omit<CartLine, "qty">) => void;
+  put: (line: CartLine) => void; // положить готовую строку (раки: с выбранным весом)
   setQty: (key: string, qty: number) => void;
   clear: () => void;
   count: number; // число позиций
@@ -55,21 +57,31 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [lines]);
 
   const add = useCallback((item: Omit<CartLine, "qty">) => {
-    setLines((l) => ({ ...l, [item.key]: { ...item, qty: (l[item.key]?.qty ?? 0) + item.step } }));
+    setLines((l) => {
+      const cur = l[item.key]?.qty ?? 0;
+      // первый раз — сразу минимум (весовым это 1 кг, а не 0,5); дальше по шагу
+      const qty = cur > 0 ? cur + item.step : item.min;
+      return { ...l, [item.key]: { ...item, qty } };
+    });
   }, []);
 
   const setQty = useCallback((key: string, qty: number) => {
     setLines((l) => {
       const cur = l[key];
       if (!cur) return l;
-      const q = Math.max(0, Math.round(qty / cur.step) * cur.step);
-      if (q <= 0) {
+      const q = Math.round(qty / cur.step) * cur.step;
+      if (q < cur.min) {
+        // ниже минимума — убираем позицию из заказа
         const { [key]: _drop, ...rest } = l;
         void _drop;
         return rest;
       }
       return { ...l, [key]: { ...cur, qty: q } };
     });
+  }, []);
+
+  const put = useCallback((line: CartLine) => {
+    setLines((l) => ({ ...l, [line.key]: line }));
   }, []);
 
   const clear = useCallback(() => setLines({}), []);
@@ -79,8 +91,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const count = arr.length;
 
   const value = useMemo(
-    () => ({ lines, table, add, setQty, clear, count, total }),
-    [lines, table, add, setQty, clear, count, total],
+    () => ({ lines, table, add, put, setQty, clear, count, total }),
+    [lines, table, add, put, setQty, clear, count, total],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
