@@ -13,6 +13,11 @@ import {
   setFlag,
   softDelete,
   restoreEntry,
+  addEntry,
+  addVariant,
+  updateVariant,
+  deleteVariant,
+  parseVariant,
 } from "./menu-write-db";
 import { getState, setState, clearState } from "./bot-state-db";
 import {
@@ -72,6 +77,7 @@ export async function renderEntryList(
     const mark = e.isHidden ? "⛔ " : "";
     kb.text(`${mark}${e.name} — ${rub(e.price)}`, `e:${e.id}`).row();
   }
+  kb.text("➕ Добавить позицию", `addentry:${chapterId}`).row();
   kb.text("◀️ К разделам", "menu");
   const text = `<b>${ch.title}</b>\nПозиций: ${ch.total}${ch.hidden ? ` · скрыто ${ch.hidden}` : ""}`;
   return { text, keyboard: kb };
@@ -106,6 +112,8 @@ export async function renderEntryCard(
     .row()
     .text("📝 Кратко", `short:${e.id}`)
     .text("📄 Подробно", `full:${e.id}`)
+    .row()
+    .text(`📐 Форматы (${e.variants.length})`, `vars:${e.id}`)
     .row()
     .text(e.signature ? "◆ убрать" : "◆ фирменная", `flag:${e.id}:signature`)
     .text(e.spicy ? "🌶 убрать" : "🌶 острая", `flag:${e.id}:spicy`)
@@ -179,6 +187,27 @@ export async function renderRakiRecipe(
     .text("🗑 Удалить рецепт", `rrecdel:${prepId}:${idx}`)
     .row()
     .text("◀️ Назад", `rprep:${prepId}`);
+  return { text: lines.join("\n"), keyboard: kb };
+}
+
+/** Экран форматов подачи позиции (variants). */
+export async function renderVariants(
+  entryId: number,
+): Promise<{ text: string; keyboard: InlineKeyboard } | null> {
+  const e = await getEntry(entryId);
+  if (!e) return null;
+  const kb = new InlineKeyboard();
+  const lines = [`📐 <b>Форматы подачи</b> — ${e.name}`, ""];
+  if (e.variants.length) {
+    e.variants.forEach((v, i) => {
+      lines.push(`  ${i + 1}. ${v.label} — ${rub(v.price)}`);
+      kb.text(`✏️ ${v.label}`, `varedit:${entryId}:${i}`).text("🗑", `vardel:${entryId}:${i}`).row();
+    });
+  } else {
+    lines.push("<i>Форматов пока нет.</i>");
+  }
+  kb.text("➕ Добавить формат", `varadd:${entryId}`).row();
+  kb.text("◀️ К позиции", `e:${entryId}`);
   return { text: lines.join("\n"), keyboard: kb };
 }
 
@@ -432,6 +461,54 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ctx.answerCallbackQuery();
   });
 
+  // --- Форматы подачи (variants) ----------------------------------------
+  bot.callbackQuery(/^vars:(\d+)$/, async (ctx) => {
+    const res = await renderVariants(Number(ctx.match![1]));
+    if (!res) return void ctx.answerCallbackQuery({ text: "Позиция не найдена." });
+    await editTo(ctx, res.text, res.keyboard);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^varadd:(\d+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    await setState(ctx.from!.id, "varadd", id);
+    const kb = new InlineKeyboard().text("Отмена", `vars:${id}`);
+    await editTo(ctx, "➕ Отправьте формат как <b>метка = цена</b>\nНапример: <code>0,5 кг = 1450</code>\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^varedit:(\d+):(\d+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    const idx = Number(ctx.match![2]);
+    await setState(ctx.from!.id, "varedit", id, { idx });
+    const kb = new InlineKeyboard().text("Отмена", `vars:${id}`);
+    await editTo(ctx, "✏️ Отправьте новый формат как <b>метка = цена</b> (например <code>0,5 кг = 1450</code>).\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^vardel:(\d+):(\d+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    const idx = Number(ctx.match![2]);
+    try {
+      await deleteVariant(id, idx, ctx.from!.id);
+      await changed();
+      const res = await renderVariants(id);
+      if (res) await editTo(ctx, res.text, res.keyboard);
+      await ctx.answerCallbackQuery({ text: "Формат удалён." });
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
+  // --- Добавить позицию (2 шага: название → цена) ------------------------
+  bot.callbackQuery(/^addentry:(.+)$/, async (ctx) => {
+    const chapterId = ctx.match![1];
+    await setState(ctx.from!.id, "addname", null, { chapterId });
+    const kb = new InlineKeyboard().text("Отмена", `ch:${chapterId}`);
+    await editTo(ctx, "➕ <b>Новая позиция.</b>\nШаг 1/2 — отправьте <b>название</b>.\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
   // Единственный обработчик текста: если у пользователя открыт диалог — применяем.
   bot.on("message:text", async (ctx) => {
     const st = await getState(ctx.from!.id);
@@ -444,6 +521,26 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     if (["rprice", "rrecname", "rrecsur", "raddrec"].includes(st.action)) {
       try {
         await applyRakiInput(ctx, st, value, changed);
+      } catch (e) {
+        await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+      }
+      return;
+    }
+
+    // Форматы подачи (variants) — entryId = позиция.
+    if (st.action === "varadd" || st.action === "varedit") {
+      try {
+        await applyVariantInput(ctx, st, value, changed);
+      } catch (e) {
+        await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+      }
+      return;
+    }
+
+    // Добавление позиции (2 шага, payload) — entryId=null до создания.
+    if (st.action === "addname" || st.action === "addprice") {
+      try {
+        await applyAddEntryInput(ctx, st, value, changed);
       } catch (e) {
         await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
       }
@@ -548,6 +645,48 @@ async function applyRakiInput(
     await changed();
     return void reply(await renderRakiRecipe(p.prepId!, p.idx!), "✓ Надбавка обновлена.");
   }
+}
+
+type Dlg = { action: string; entryId: number | null; payload: Record<string, unknown> };
+
+/** Применить ввод формата подачи (varadd/varedit). */
+async function applyVariantInput(ctx: Context, st: Dlg, value: string, changed: () => Promise<void>) {
+  const uid = ctx.from!.id;
+  const parsed = parseVariant(value);
+  if (!parsed) {
+    return void ctx.reply("Формат: «метка = цена», например «0,5 кг = 1450». Ещё раз или /cancel.");
+  }
+  if (st.action === "varadd") await addVariant(st.entryId!, parsed.label, parsed.price, uid);
+  else await updateVariant(st.entryId!, Number(st.payload.idx), parsed.label, parsed.price, uid);
+  await clearState(uid);
+  await changed();
+  const res = await renderVariants(st.entryId!);
+  await ctx.reply("✓ Форматы обновлены.");
+  if (res) await ctx.reply(res.text, { parse_mode: "HTML", reply_markup: res.keyboard });
+}
+
+/** Применить ввод добавления позиции (addname → addprice → создать). */
+async function applyAddEntryInput(ctx: Context, st: Dlg, value: string, changed: () => Promise<void>) {
+  const uid = ctx.from!.id;
+  const chapterId = String(st.payload.chapterId);
+  if (st.action === "addname") {
+    const name = value.trim();
+    if (!name) return void ctx.reply("Название пустое. Ещё раз или /cancel.");
+    await setState(uid, "addprice", null, { chapterId, name });
+    return void ctx.reply(`Шаг 2/2 — отправьте <b>цену</b> числом для «${name}».\n\nИли /cancel.`, {
+      parse_mode: "HTML",
+    });
+  }
+  // addprice
+  const price = Number(value.replace(/\s/g, "").replace(",", "."));
+  if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
+    return void ctx.reply("Нужно целое число, например 650. Ещё раз или /cancel.");
+  }
+  const id = await addEntry(chapterId, { name: String(st.payload.name), price }, uid);
+  await clearState(uid);
+  await changed();
+  await ctx.reply("✓ Позиция добавлена. Заполните остальное кнопками:");
+  await showCard(ctx, id);
 }
 
 /** Правит текущее сообщение (навигация «на месте»), с фолбэком на новое. */

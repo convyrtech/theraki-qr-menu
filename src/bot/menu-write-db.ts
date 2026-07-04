@@ -113,6 +113,67 @@ export async function restoreEntry(entryId: number, actorId: number): Promise<vo
   await audit(sql, actorId, "restore", entryId, { name: rows[0].name });
 }
 
+// --- Форматы подачи (variants: [{label, price}]) ------------------------
+export type Variant = { label: string; price: number };
+
+async function readVariants(entryId: number): Promise<{ name: string; variants: Variant[] }> {
+  const sql = db();
+  const rows = (await sql.query(`SELECT name, variants FROM entries WHERE id=$1 AND NOT is_deleted`, [
+    entryId,
+  ])) as unknown as { name: string; variants: Variant[] }[];
+  if (!rows.length) throw new Error("Позиция не найдена.");
+  return { name: rows[0].name, variants: Array.isArray(rows[0].variants) ? rows[0].variants : [] };
+}
+
+async function writeVariants(entryId: number, variants: Variant[], actorId: number, details: Record<string, unknown>) {
+  const sql = db();
+  await sql.query(`UPDATE entries SET variants=$2::jsonb, updated_at=now() WHERE id=$1`, [
+    entryId,
+    JSON.stringify(variants),
+  ]);
+  await audit(sql, actorId, "variant", entryId, details);
+}
+
+export async function addVariant(entryId: number, label: string, price: number, actorId: number): Promise<void> {
+  if (!label.trim()) throw new Error("Метка формата пустая.");
+  if (!Number.isInteger(price) || price < 0) throw new Error("Цена — целое ≥ 0.");
+  const { name, variants } = await readVariants(entryId);
+  variants.push({ label: label.trim(), price });
+  await writeVariants(entryId, variants, actorId, { name, op: "add", label: label.trim(), price });
+}
+
+export async function updateVariant(
+  entryId: number,
+  idx: number,
+  label: string,
+  price: number,
+  actorId: number,
+): Promise<void> {
+  if (!label.trim()) throw new Error("Метка формата пустая.");
+  if (!Number.isInteger(price) || price < 0) throw new Error("Цена — целое ≥ 0.");
+  const { name, variants } = await readVariants(entryId);
+  if (!variants[idx]) throw new Error("Формат не найден.");
+  variants[idx] = { label: label.trim(), price };
+  await writeVariants(entryId, variants, actorId, { name, op: "update", idx, label: label.trim(), price });
+}
+
+export async function deleteVariant(entryId: number, idx: number, actorId: number): Promise<void> {
+  const { name, variants } = await readVariants(entryId);
+  if (!variants[idx]) throw new Error("Формат не найден.");
+  const [removed] = variants.splice(idx, 1);
+  await writeVariants(entryId, variants, actorId, { name, op: "delete", removed });
+}
+
+/** Разбор строки «метка = цена» (например «0,5 кг = 1450»). */
+export function parseVariant(text: string): { label: string; price: number } | null {
+  const parts = text.split("=");
+  if (parts.length !== 2) return null;
+  const label = parts[0].trim();
+  const price = Number(parts[1].replace(/\s/g, "").replace(",", "."));
+  if (!label || !Number.isInteger(price) || price < 0) return null;
+  return { label, price };
+}
+
 /** Добавить позицию в раздел (в конец). Возвращает id новой позиции. */
 export async function addEntry(
   chapterId: string,

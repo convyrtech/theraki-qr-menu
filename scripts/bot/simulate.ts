@@ -4,6 +4,7 @@
 // Запуск: node --env-file=.env.local --import tsx scripts/bot/simulate.ts
 import type { UserFromGetMe } from "grammy/types";
 import { createBot } from "../../src/bot/bot";
+import { neon } from "@neondatabase/serverless";
 import { listEntries, getEntry } from "../../src/bot/menu-admin-db";
 import { getBoard } from "../../src/bot/raki-write-db";
 
@@ -202,6 +203,36 @@ async function main() {
   await check("острый инвертирован", ((await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false) === !sp0);
   await bot.handleUpdate(cb(ADMIN, "rrecspicy:boiled:0"));
   await check("острый возвращён", ((await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false) === sp0);
+
+  // === ФОРМАТЫ ПОДАЧИ (variants) на позиции id (self-cleaning) ===
+  console.log("\n=== ФОРМАТЫ (variants, позиция id " + id + ") ===");
+  const vlen0 = before.variants.length;
+  await bot.handleUpdate(cb(ADMIN, `varadd:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "0,5 кг = 1450"));
+  let v = (await getEntry(id))!.variants;
+  await check("формат добавлен (+1)", v.length === vlen0 + 1);
+  await check("значения формата верны", v[v.length - 1].label === "0,5 кг" && v[v.length - 1].price === 1450);
+  await bot.handleUpdate(cb(ADMIN, `varedit:${id}:${v.length - 1}`));
+  await bot.handleUpdate(msg(ADMIN, "1 кг = 3000"));
+  v = (await getEntry(id))!.variants;
+  await check("формат отредактирован", v[v.length - 1].label === "1 кг" && v[v.length - 1].price === 3000);
+  await bot.handleUpdate(cb(ADMIN, `vardel:${id}:${v.length - 1}`));
+  await check("формат удалён (обратно)", (await getEntry(id))!.variants.length === vlen0);
+
+  // === ДОБАВИТЬ ПОЗИЦИЮ (2 шага) в «Гарниры», затем жёстко удалить ===
+  console.log("\n=== ДОБАВИТЬ ПОЗИЦИЮ (garnish) ===");
+  const g0 = (await listEntries("garnish")).length;
+  await bot.handleUpdate(cb(ADMIN, "addentry:garnish"));
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-БЛЮДО"));
+  await bot.handleUpdate(msg(ADMIN, "777"));
+  const gAfter = await listEntries("garnish");
+  const created = gAfter.find((e) => e.name === "ТЕСТ-БЛЮДО");
+  await check("позиция создана (+1)", gAfter.length === g0 + 1);
+  await check("название и цена верны", !!created && created.price === 777);
+  // Жёсткая очистка тестовой позиции (не soft-delete — чтобы не копить мусор)
+  const sql = neon(process.env.DATABASE_URL!);
+  await sql.query("DELETE FROM entries WHERE name='ТЕСТ-БЛЮДО'");
+  await check("позиция удалена начисто", (await listEntries("garnish")).length === g0);
 
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }
