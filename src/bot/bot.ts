@@ -701,8 +701,20 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
         }
         await setPrice(st.entryId, price, ctx.from!.id);
       } else if (st.action === "photo") {
-        // «-» убирает фото; иначе ждём https-ссылку (проверка в setPhoto).
-        await setPhoto(st.entryId, value === "-" ? null : value, ctx.from!.id);
+        // «-» убирает фото; иначе ждём https-ссылку (проверка формата в setPhoto).
+        const url = value === "-" ? null : value;
+        await setPhoto(st.entryId, url, ctx.from!.id);
+        // Превью: показываем присланное фото, чтобы владелец видел, что ссылка
+        // рабочая (не вставлял вслепую). Если Telegram не загрузил — предупреждаем.
+        if (url) {
+          try {
+            await ctx.replyWithPhoto(url, { caption: "Так фото будет на сайте." });
+          } catch {
+            await ctx.reply(
+              "⚠️ Превью не загрузилось. Проверьте, что ссылка открывает саму картинку в браузере — иначе на сайте она тоже не покажется.",
+            );
+          }
+        }
       } else {
         const cfg = TEXT_PROMPTS[st.action];
         if (!cfg) {
