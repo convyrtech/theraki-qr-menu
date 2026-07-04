@@ -68,8 +68,11 @@ CREATE TABLE IF NOT EXISTS orders_log (
   table_no  text,
   total     int,
   items     jsonb NOT NULL DEFAULT '[]',
-  comment   text
+  comment   text,
+  ip        text
 );
+ALTER TABLE orders_log ADD COLUMN IF NOT EXISTS ip text;
+CREATE INDEX IF NOT EXISTS orders_log_at ON orders_log (at);
 
 -- Фото позиций, загруженные через бота (отправкой картинки). Храним WebP как
 -- base64-текст (проще, чем bytea через HTTP-драйвер); отдаём роутом /api/photo/[id].

@@ -3,7 +3,7 @@
 // Корзина заказа (Этап B, фаза B1): состояние + localStorage + номер стола из QR,
 // кнопка «+ в заказ» со счётчиком, нижняя панель, окно отправки.
 // B1 — обычные позиции (фикс-цена, шаг 1). Весовые/варианты/раки — B2/B3.
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 export type CartLine = {
   key: string;
@@ -41,21 +41,51 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [lines, setLines] = useState<Record<string, CartLine>>({});
   const [table, setTable] = useState("");
 
-  // Загрузка из localStorage + номер стола из адреса (?t=5 или ?стол=5).
+  const loadedRef = useRef(false);
+
+  // Загрузка из localStorage + номер стола из адреса (?t=5 / ?стол=5).
   useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const urlTable = (p.get("t") || p.get("стол") || p.get("table") || "").slice(0, 20);
+    setTable(urlTable);
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (raw) setLines(JSON.parse(raw));
+      if (raw) {
+        const saved = JSON.parse(raw) as { table?: string; lines?: Record<string, CartLine> };
+        // Смена стола: старую корзину НЕ переносим на новый стол (сброс сессии).
+        if (saved.table && urlTable && saved.table !== urlTable) {
+          localStorage.removeItem(LS_KEY);
+        } else if (saved.lines) {
+          // Валидируем каждую строку — битые (truncated write / старая схема) дропаем,
+          // иначе lineSum даёт NaN и «NaN ₽» залипает в панели.
+          const clean: Record<string, CartLine> = {};
+          for (const [k, l] of Object.entries(saved.lines)) {
+            if (
+              l &&
+              Number.isFinite(l.unitPrice) &&
+              Number.isFinite(l.qty) &&
+              Number.isFinite(l.step) &&
+              Number.isFinite(l.min) &&
+              l.qty > 0 &&
+              typeof l.label === "string"
+            ) {
+              clean[k] = l;
+            }
+          }
+          setLines(clean);
+        }
+      }
     } catch {}
-    const p = new URLSearchParams(window.location.search);
-    setTable((p.get("t") || p.get("стол") || p.get("table") || "").slice(0, 20));
+    loadedRef.current = true;
   }, []);
 
+  // Сохраняем ТОЛЬКО после загрузки (иначе пустой стейт затрёт корзину до чтения).
   useEffect(() => {
+    if (!loadedRef.current) return;
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(lines));
+      localStorage.setItem(LS_KEY, JSON.stringify({ table, lines }));
     } catch {}
-  }, [lines]);
+  }, [lines, table]);
 
   const add = useCallback((item: Omit<CartLine, "qty">) => {
     setLines((l) => {
@@ -170,6 +200,7 @@ export function CartBar() {
   if (count === 0) return null;
 
   async function submit() {
+    if (sending) return; // защита от двойной отправки (быстрый повторный тап)
     setSending(true);
     setErr("");
     try {

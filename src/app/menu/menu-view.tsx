@@ -19,7 +19,9 @@ const orderable = (e: MenuEntry): boolean => e.unit === "кг" || !(e.variants &
 const cartItemOf = (e: MenuEntry) => {
   const weight = e.unit === "кг";
   return {
-    key: e.name,
+    // Ключ включает цену+единицу — чтобы два разных блюда с одинаковым названием
+    // не слились в одну строку. Считается одинаково в карточке и в детали.
+    key: `${e.name}|${e.price}|${e.unit ?? ""}`,
     label: e.name,
     unitPrice: e.price,
     step: weight ? 0.5 : 1,
@@ -369,8 +371,8 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
   const kg = (w: number) => `${w} кг`.replace(".", ",");
 
   function addToOrder() {
-    if (!size) return;
-    const sur = recipe?.surcharge ? ` (${recipe.surcharge})` : "";
+    if (!size || !recipe) return;
+    const sur = recipe.surcharge ? ` (${recipe.surcharge})` : "";
     put({
       key: `raki:${prep.id}:${size.tier}:${recipeIdx}`,
       label: `Раки ${prep.title.toLowerCase()} · ${size.tier} · ${recipe.name}${sur}`,
@@ -456,7 +458,7 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
           {added ? (
             <div className="mn__raki-added">✓ Добавлено в заказ</div>
           ) : (
-            <button type="button" className="mn-cart-send" disabled={!size} onClick={addToOrder}>
+            <button type="button" className="mn-cart-send" disabled={!size || !recipe} onClick={addToOrder}>
               {size ? `Добавить в заказ · ${fmtP(sum)} ₽` : "Сначала выберите размер"}
             </button>
           )}

@@ -14,19 +14,26 @@ export function ordersChatId(): string {
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 
-/** Не больше 15 заказов в минуту глобально — простая защита от спама/флуда. */
-export async function rateLimitOk(): Promise<boolean> {
+/**
+ * Лимит частоты: по IP и по столу — не больше 8/мин каждого (одно устройство/стол
+ * не зафлудит); глобально до 60/мин (потолок объёма, но НЕ блокирует остальные столы,
+ * как раньше глобальные 15). Возвращает причину отказа или null (ок).
+ */
+export async function rateLimitReason(table: string, ip: string): Promise<string | null> {
   const rows = (await dbQuery(
-    `SELECT count(*)::int AS n FROM orders_log WHERE at > now() - interval '1 minute'`,
-  )) as unknown as { n: number }[];
-  return rows[0].n < 15;
+    `SELECT
+       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute')::int AS total,
+       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute' AND ip = $1)::int AS by_ip,
+       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute' AND table_no = $2)::int AS by_table`,
+    [ip || null, table || null],
+  )) as unknown as { total: number; by_ip: number; by_table: number }[];
+  const r = rows[0];
+  if (r.by_ip >= 8 || r.by_table >= 8) return "Слишком часто с этого устройства. Подождите минуту.";
+  if (r.total >= 60) return "Кухня перегружена заказами. Попробуйте через минуту или позовите официанта.";
+  return null;
 }
 
-export async function logAndSendOrder(order: Order): Promise<void> {
-  const token = process.env.TG_BOT_TOKEN;
-  const chatId = ordersChatId();
-  if (!token || !chatId) throw new Error("Заказы не настроены (нет бота/чата).");
-
+function orderText(order: Order): string {
   const lines = [
     `🧾 <b>НОВЫЙ ЗАКАЗ</b>${order.table ? ` · стол <b>${escHtml(order.table)}</b>` : ""}`,
     "──────────",
@@ -35,17 +42,32 @@ export async function logAndSendOrder(order: Order): Promise<void> {
     `Итого: <b>${rub(order.total)}</b>`,
   ];
   if (order.comment) lines.push(`💬 ${escHtml(order.comment)}`);
+  return lines.join("\n");
+}
 
+export async function logAndSendOrder(order: Order, ip: string): Promise<void> {
+  const token = process.env.TG_BOT_TOKEN;
+  const chatId = ordersChatId();
+  if (!token || !chatId) throw new Error("Заказы не настроены (нет бота/чата).");
+
+  // 1) СНАЧАЛА отправка персоналу. Если она падает — заказ НЕ дошёл, бросаем
+  //    (route вернёт ошибку, гость повторит — это правильно).
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: lines.join("\n"), parse_mode: "HTML" }),
+    body: JSON.stringify({ chat_id: chatId, text: orderText(order), parse_mode: "HTML" }),
   });
   if (!res.ok) {
     throw new Error(`Telegram sendMessage ${res.status}: ${(await res.text()).slice(0, 200)}`);
   }
-  await dbQuery(
-    `INSERT INTO orders_log (table_no, total, items, comment) VALUES ($1,$2,$3::jsonb,$4)`,
-    [order.table || null, order.total, JSON.stringify(order.items), order.comment || null],
-  );
+  // 2) Лог — best-effort: заказ уже у персонала, сбой записи журнала НЕ должен
+  //    превращать доставленный заказ в ошибку гостю (иначе повтор → дубль).
+  try {
+    await dbQuery(
+      `INSERT INTO orders_log (table_no, total, items, comment, ip) VALUES ($1,$2,$3::jsonb,$4,$5)`,
+      [order.table || null, order.total, JSON.stringify(order.items), order.comment || null, ip || null],
+    );
+  } catch (e) {
+    console.error("[order] заказ отправлен, но журнал не записался:", e);
+  }
 }

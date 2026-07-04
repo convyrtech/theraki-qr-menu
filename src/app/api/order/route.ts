@@ -1,6 +1,6 @@
 // Публичный приём заказа из корзины QR-меню. Валидирует, пересчитывает сумму
 // на сервере (клиенту не доверяем), шлёт в чат персонала, пишет в orders_log.
-import { logAndSendOrder, rateLimitOk, type OrderItem } from "@/lib/orders";
+import { logAndSendOrder, rateLimitReason, type OrderItem } from "@/lib/orders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,11 +34,11 @@ export async function POST(req: Request): Promise<Response> {
   const table = String(b.table ?? "").trim().slice(0, 20);
   const comment = String(b.comment ?? "").trim().slice(0, 500);
 
-  if (!(await rateLimitOk())) {
-    return Response.json({ error: "Слишком часто. Попробуйте через минуту." }, { status: 429 });
-  }
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+  const reason = await rateLimitReason(table, ip);
+  if (reason) return Response.json({ error: reason }, { status: 429 });
   try {
-    await logAndSendOrder({ table, comment, items, total });
+    await logAndSendOrder({ table, comment, items, total }, ip);
   } catch (e) {
     console.error("[order] не удалось отправить:", e);
     return Response.json({ error: "Не удалось отправить заказ. Позовите официанта." }, { status: 502 });
