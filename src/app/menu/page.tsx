@@ -746,7 +746,10 @@ export default function Menu() {
     if (reduce || !introDone) return; // стартуем ПОСЛЕ интро — иначе первый экран
     // «отыгрывает» появление невидимым под вуалью и встречает гостя статикой
     document.querySelector(".mn")?.classList.add("reveal-on");
-    let els = Array.from(document.querySelectorAll<HTMLElement>(".mn__card, .mn__row, .mn__ch"));
+    // карточки краба не участвуют: первый экран после интро остаётся статичным
+    let els = Array.from(
+      document.querySelectorAll<HTMLElement>(".mn__card, .mn__row, .mn__ch, .mn__group, .mn__app, .mn__colophon"),
+    ).filter((el) => !(el.classList.contains("mn__card") && el.closest("#mn-crab")));
     let raf = 0;
     let firstPass = true;
     const sweep = () => {

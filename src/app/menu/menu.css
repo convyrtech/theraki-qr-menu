@@ -400,16 +400,33 @@ body:has(.mn) { background: #ffffff; }
    финальное состояние живёт в классе .is-in (opacity 1), поэтому даже если
    таймлайн анимаций заморожен (фоновая вкладка/свёрнутый телефон), контент
    ГАРАНТИРОВАННО виден — теряется только плавность. Без JS контент виден. */
-.mn.reveal-on .mn__card { opacity: 0; }
+.mn.reveal-on .mn__card { opacity: 0; transform: translateY(16px); }
 .mn.reveal-on .mn__row { opacity: 0; transform: translateY(16px); }
 .mn.reveal-on .mn__ch { opacity: 0; transform: translateY(24px); }
+.mn.reveal-on .mn__group,
+.mn.reveal-on .mn__app,
+.mn.reveal-on .mn__colophon { opacity: 0; transform: translateY(18px); }
 .mn.reveal-on .mn__row,
-.mn.reveal-on .mn__ch {
+.mn.reveal-on .mn__ch,
+.mn.reveal-on .mn__group,
+.mn.reveal-on .mn__app,
+.mn.reveal-on .mn__colophon {
   transition: opacity 0.55s cubic-bezier(0.22,1,0.36,1), transform 0.55s cubic-bezier(0.22,1,0.36,1);
 }
-.mn.reveal-on .mn__card.is-in { opacity: 1; }
+/* карточкам — та же пластика + сохраняем box-shadow пресс-отклика из базового правила */
+.mn.reveal-on .mn__card {
+  transition: opacity 0.55s cubic-bezier(0.22,1,0.36,1), transform 0.55s cubic-bezier(0.22,1,0.36,1),
+    box-shadow 320ms cubic-bezier(0.22,1,0.36,1);
+}
+.mn.reveal-on .mn__card.is-in { opacity: 1; transform: none; }
 .mn.reveal-on .mn__row.is-in { opacity: 1; transform: none; }
 .mn.reveal-on .mn__ch.is-in { opacity: 1; transform: none; }
+.mn.reveal-on .mn__group.is-in,
+.mn.reveal-on .mn__app.is-in,
+.mn.reveal-on .mn__colophon.is-in { opacity: 1; transform: none; }
+/* краб — первый экран сразу после интро: карточки статичны,
+   чтобы не двоить появление с reveal-ом самого интро */
+.mn.reveal-on #mn-crab .mn__card { opacity: 1; transform: none; }
 
 /* мини-заголовок под-группы в длинной главе (Воды/Газировки/Соки) — ритм вместо простыни */
 .mn__group {
