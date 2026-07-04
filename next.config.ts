@@ -1,13 +1,13 @@
 import type { NextConfig } from "next";
 
-// Static export: the QR menu is a fully static artifact — deployable to any
-// host, loads instantly on a phone over cellular. Images are pre-optimized
-// to WebP at build time by scripts/optimize-images.mjs, so the Next image
-// optimizer is not needed.
+// ⚠️ Ветка feat/tg-admin: сайт читает меню из БД (Neon) с ISR, поэтому
+// output:"export" УБРАН (статик-экспорт не умеет серверные компоненты/ISR).
+// Деплой этой версии — на Vercel по ОТДЕЛЬНОМУ адресу. Прод menu.theraki.ru
+// на GitHub Pages собирается из ДРУГОЙ ветки (feat/site-aligned-menu) и не
+// затронут. Изображения по-прежнему пред-оптимизированы в WebP
+// (scripts/optimize-images.mjs), поэтому image-оптимизатор не нужен.
 const nextConfig: NextConfig = {
-  output: "export",
-  // Статик-хостинг (GitHub Pages): menu/index.html вместо menu.html —
-  // чистые URL со слэшем работают на любом файловом сервере
+  // trailingSlash сохранён: URL /menu/ стабилен (совпадает с прод-адресом QR)
   trailingSlash: true,
   images: {
     unoptimized: true,

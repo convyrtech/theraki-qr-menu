@@ -9,7 +9,7 @@
 import { neon } from "@neondatabase/serverless";
 import type { Chapter, MenuEntry } from "@/data/menu";
 
-type RakiBoard = {
+export type RakiBoard = {
   id: string;
   title: string;
   sizes: { tier: string; countPerKg: string; price: number }[];

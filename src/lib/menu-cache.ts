@@ -1,0 +1,39 @@
+// Кэш-обёртка чтения меню для страницы (server component).
+// Отдельно от menu-db.ts, потому что тянет next/cache (menu-db.ts должен
+// оставаться чистым — его импортит CLI-скрипт паритета).
+//
+// ISR: результат кэшируется с тегом "menu"; бот после правки дёргает
+// revalidateTag("menu") — страница пересобирается за секунды, оставаясь
+// статически быстрой для гостей между правками.
+import { unstable_cache } from "next/cache";
+import { getMenu, type RakiBoard } from "./menu-db";
+import { chapters as staticChapters, rakiChapter as staticRaki } from "@/data/menu";
+import type { Chapter } from "@/data/menu";
+
+export const MENU_TAG = "menu";
+
+type MenuPayload = { chapters: Chapter[]; rakiChapter: RakiBoard; fallback: boolean };
+
+const loadMenu = unstable_cache(
+  async (): Promise<MenuPayload> => {
+    const { chapters, rakiChapter } = await getMenu();
+    return { chapters, rakiChapter, fallback: false };
+  },
+  ["menu-payload-v1"],
+  { tags: [MENU_TAG] },
+);
+
+/**
+ * Меню для страницы. При недоступности БД — тихий фолбэк на статический
+ * снапшот menu.ts (гость никогда не видит пустое меню). Фолбэк НЕ кэшируется,
+ * чтобы следующий запрос повторил попытку к БД.
+ */
+export async function getMenuForPage(): Promise<MenuPayload> {
+  try {
+    return await loadMenu();
+  } catch (err) {
+    console.error("[menu] чтение БД упало, фолбэк на статический menu.ts:", err);
+    // TODO (Фаза 5): алерт в админ-чат бота о работе на резерве.
+    return { chapters: staticChapters, rakiChapter: staticRaki as RakiBoard, fallback: true };
+  }
+}
