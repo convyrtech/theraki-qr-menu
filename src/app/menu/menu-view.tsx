@@ -9,7 +9,18 @@ import {
   type Chapter,
 } from "@/data/menu";
 import { firstSentence } from "@/lib/text";
+import { CartProvider, CartBar, AddToCart } from "./cart";
 import "./menu.css";
+
+// B1: заказуемы обычные позиции с фикс-ценой (без веса/вариантов; раки — отдельно, B3).
+const orderable = (e: MenuEntry): boolean => e.unit !== "кг" && !(e.variants && e.variants.length);
+const cartItemOf = (e: MenuEntry) => ({
+  key: e.name,
+  label: e.name,
+  unitPrice: e.price,
+  step: 1,
+  unit: "шт" as const,
+});
 
 // Данные меню приходят пропсами (БД через getMenuForPage() или фолбэк на
 // menu.ts). Секции «Раки» и «Напитки» собираются из этих данных в buildSections.
@@ -840,6 +851,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
   }, []);
 
   return (
+    <CartProvider>
     <div className={"mn" + (introDone ? " mn--introdone" : "")}>
       <MenuIntro onDone={handleIntroDone} />
 
@@ -909,6 +921,11 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                           <span className="mn__row-variants">
                             {e.variants.map((v) => v.label + " — " + fmtP(v.price) + " ₽").join("  ·  ")}
                           </span>
+                        ) : null}
+                        {orderable(e) ? (
+                          <div className="mn__row-cart">
+                            <AddToCart item={cartItemOf(e)} />
+                          </div>
                         ) : null}
                       </div>
                     </Fragment>
@@ -992,6 +1009,8 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
 
       {rakiPrep ? <RakiDetail raki={rakiChapter} prep={rakiPrep} onClose={() => setRakiPrep(null)} /> : null}
     </div>
+    <CartBar />
+    </CartProvider>
   );
 }
 
@@ -1029,6 +1048,11 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
                 {v.label} — {fmtP(v.price) + " ₽"}
               </span>
             ))}
+          </div>
+        ) : null}
+        {orderable(entry) ? (
+          <div className="mn__detail-cart">
+            <AddToCart item={cartItemOf(entry)} />
           </div>
         ) : null}
       </div>
