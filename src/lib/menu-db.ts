@@ -31,6 +31,7 @@ function db() {
 type EntryRow = {
   name: string;
   note: string | null;
+  note_short: string | null;
   price: number;
   unit: string | null;
   abv: string | null;
@@ -44,6 +45,7 @@ type EntryRow = {
 function rowToEntry(r: EntryRow): MenuEntry {
   const e: MenuEntry = { name: r.name, price: r.price };
   if (r.note != null) e.note = r.note;
+  if (r.note_short != null) e.noteShort = r.note_short;
   if (r.unit != null) e.unit = r.unit;
   if (r.abv != null) e.abv = r.abv;
   if (Array.isArray(r.variants) && r.variants.length) e.variants = r.variants;
@@ -71,7 +73,7 @@ export async function getChapters(): Promise<Chapter[]> {
   }[];
 
   const entryRows = (await sql.query(
-    `SELECT chapter_id, name, note, price, unit, abv, variants, signature, spicy, photo, group_label
+    `SELECT chapter_id, name, note, note_short, price, unit, abv, variants, signature, spicy, photo, group_label
        FROM entries
       WHERE NOT is_hidden AND NOT is_deleted
       ORDER BY chapter_id, sort_order`,

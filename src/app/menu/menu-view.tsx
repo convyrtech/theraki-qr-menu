@@ -8,6 +8,7 @@ import {
   type RakiSizeTier,
   type Chapter,
 } from "@/data/menu";
+import { firstSentence } from "@/lib/text";
 import "./menu.css";
 
 // Данные меню приходят пропсами (БД через getMenuForPage() или фолбэк на
@@ -111,12 +112,11 @@ const typo = (s: string) =>
     .replace(/\//g, "/⁠")
     .replace(/(^|[\s(«])(в|во|на|с|со|к|ко|и|а|о|у|из|по|за|от|до|для|при|под|над|не)\s/gi, "$1$2 ")
     .replace(/(\p{L})-(?=\p{L})/gu, "$1‑");
-// Карточка показывает ПЕРВОЕ предложение описания, полное — в раскрытии
-// (решение владельца). Контент не режется — только рендер карточки.
-const firstSentence = (s: string) => {
-  const m = s.match(/^[^.!?]*[.!?]/);
-  return m && m[0].length < s.length ? m[0] : s;
-};
+// Карточка показывает краткое описание из БД (noteShort); если его нет —
+// первое предложение развёрнутого (firstSentence из @/lib/text). Полное — в
+// раскрытии. Хелпер cardBlurb инкапсулирует этот выбор.
+const cardBlurb = (e: MenuEntry): string | null =>
+  e.noteShort ?? (e.note ? firstSentence(e.note) : null);
 
 // «Соусы на выбор: A · B · C.» — рендерим таблетками, как рецепты раков
 // (просьба владельца); «(острый)» превращается в чили-метку.
@@ -938,10 +938,10 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                           {e.variants.map((v) => v.label + " — " + fmtP(v.price) + " ₽").join(" · ")}
                         </span>
                       ) : null}
-                      {e.note ? (
-                        isSauceNote(e.note)
-                          ? <SauceChips note={e.note} />
-                          : <p className="mn__card-note">{typo(firstSentence(e.note))}</p>
+                      {e.note && isSauceNote(e.note) ? (
+                        <SauceChips note={e.note} />
+                      ) : cardBlurb(e) ? (
+                        <p className="mn__card-note">{typo(cardBlurb(e)!)}</p>
                       ) : null}
                     </div>
                   </button>

@@ -3,6 +3,7 @@
 // Запуск: node --env-file=.env.local scripts/db/seed.ts
 import { neon } from "@neondatabase/serverless";
 import { chapters, rakiChapter } from "../../src/data/menu.ts";
+import { firstSentence } from "../../src/lib/text.ts";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL не задан (node --env-file=.env.local …).");
@@ -25,12 +26,15 @@ for (const [ci, ch] of chapters.entries()) {
   for (const [ei, e] of ch.entries.entries()) {
     await sql.query(
       `INSERT INTO entries
-         (chapter_id, name, note, price, unit, abv, variants, signature, spicy, photo, group_label, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)`,
+         (chapter_id, name, note, note_short, price, unit, abv, variants, signature, spicy, photo, group_label, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13)`,
       [
         ch.id,
         e.name,
         e.note ?? null,
+        // Начальное краткое = первое предложение развёрнутого (как на карточке
+        // сегодня) — визуально сайт не меняется; дальше владелец правит вручную.
+        e.note ? firstSentence(e.note) : null,
         e.price,
         e.unit ?? null,
         e.abv ?? null,

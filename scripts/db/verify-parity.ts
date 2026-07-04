@@ -5,7 +5,18 @@ import { deepStrictEqual } from "node:assert";
 import { chapters as staticChapters, rakiChapter as staticRaki } from "../../src/data/menu.ts";
 import { getMenu } from "../../src/lib/menu-db.ts";
 
-const { chapters: dbChapters, rakiChapter: dbRaki } = await getMenu();
+const { chapters: dbRaw, rakiChapter: dbRaki } = await getMenu();
+
+// noteShort — новое производное поле (краткое описание), которого нет в menu.ts.
+// Для сверки ЯДРА миграции его убираем: сравниваем то, что реально пришло из дока.
+const dbChapters = dbRaw.map((c) => ({
+  ...c,
+  entries: c.entries.map((e) => {
+    const { noteShort: _drop, ...rest } = e;
+    void _drop;
+    return rest;
+  }),
+}));
 
 const diffs: string[] = [];
 

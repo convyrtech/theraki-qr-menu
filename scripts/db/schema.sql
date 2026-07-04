@@ -34,6 +34,11 @@ CREATE TABLE IF NOT EXISTS entries (
 
 CREATE INDEX IF NOT EXISTS entries_chapter_order ON entries (chapter_id, sort_order);
 
+-- Описание разделено на краткое (карточка) и развёрнутое (деталь) — решение
+-- владельца 2026-07-04. `note` = развёрнутое (full), note_short = краткое.
+-- ADD COLUMN IF NOT EXISTS — идемпотентно для уже засеянной базы.
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS note_short text;
+
 -- Доска раков (rakiChapter) — не MenuEntry, хранится как jsonb-документ.
 -- Бот Этапа A правит внутри только цены размеров.
 CREATE TABLE IF NOT EXISTS boards (
