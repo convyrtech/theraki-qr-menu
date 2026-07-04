@@ -12,6 +12,7 @@ export type CartLine = {
   step: number; // шаг количества (1 для штук, 0.5 для кг)
   min: number; // минимум (1 шт / 1 кг); ниже — позиция убирается
   unit: "шт" | "кг"; // как считать/подписывать
+  extra?: number; // фикс. надбавка к строке (раки: рецепт «+1 000 ₽»)
   qty: number;
 };
 
@@ -29,8 +30,8 @@ type CartCtx = {
 const Ctx = createContext<CartCtx | null>(null);
 const LS_KEY = "raki-cart-v1";
 
-export function lineSum(l: { unitPrice: number; qty: number }): number {
-  return Math.round(l.unitPrice * l.qty);
+export function lineSum(l: { unitPrice: number; qty: number; extra?: number }): number {
+  return Math.round(l.unitPrice * l.qty) + (l.extra ?? 0);
 }
 export function qtyText(l: { unit: "шт" | "кг"; qty: number }): string {
   return l.unit === "кг" ? `${l.qty} кг`.replace(".", ",") : `×${l.qty}`;

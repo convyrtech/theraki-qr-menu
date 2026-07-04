@@ -363,7 +363,9 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
 
   const size = raki.sizes.find((s) => s.tier === tier);
   const recipe = prep.recipes[recipeIdx];
-  const sum = size ? Math.round(size.price * weight) : 0;
+  // Надбавка рецепта («+1 000 ₽») — фикс. к строке, входит в цену.
+  const extra = recipe?.surcharge ? Number(recipe.surcharge.replace(/[^\d]/g, "")) || 0 : 0;
+  const sum = size ? Math.round(size.price * weight) + extra : 0;
   const kg = (w: number) => `${w} кг`.replace(".", ",");
 
   function addToOrder() {
@@ -376,6 +378,7 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
       step: 0.5,
       min: 1,
       unit: "кг",
+      extra,
       qty: weight,
     });
     setAdded(true);
