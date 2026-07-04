@@ -46,6 +46,7 @@ function buildSections(chapters: Chapter[], raki: RakiData) {
     title: "Раки",
     lede: undefined as string | undefined,
     origin: undefined as string | undefined,
+    layout: "cards" as const,
     entries: raki.sizes.map((s): MenuEntry => ({
       name: `Раки · ${s.tier}`,
       price: s.price,
@@ -63,6 +64,7 @@ function buildSections(chapters: Chapter[], raki: RakiData) {
     title: "Коллекция напитков",
     lede: undefined as string | undefined,
     origin: undefined as string | undefined,
+    layout: "list" as const,
     entries: DRINK_IDS.flatMap((id): MenuEntry[] => {
       const ch = chapters.find((c) => c.id === id);
       if (!ch) return [];
@@ -85,8 +87,11 @@ function buildSections(chapters: Chapter[], raki: RakiData) {
   return [...ordered, ...extra];
 }
 
-// Категории-списки (без фото): напитки/соусы/гарниры — компактный текст, не карточки.
+// Категории-списки (без фото): компактный текст, не карточки. Стиль теперь из БД
+// (chapter.layout); LIST_CATEGORIES — фолбэк для статики menu.ts без layout.
 const LIST_CATEGORIES = new Set(["drinks", "sauces"]);
+const isListLayout = (sec: { id: string; layout?: "cards" | "list" }): boolean =>
+  sec.layout ? sec.layout === "list" : LIST_CATEGORIES.has(sec.id);
 
 const LABEL: Record<string, string> = {
   crab: "Камчатский краб",
@@ -873,7 +878,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
             <div className="mn__rule" />
             {sec.id === "raki" ? (
               <RakiBlock raki={rakiChapter} onOpen={setRakiPrep} />
-            ) : LIST_CATEGORIES.has(sec.id) ? (
+            ) : isListLayout(sec) ? (
               <div className={"mn__list" + (sec.id === "drinks" ? " mn__list--badges" : "")}>
                 {sec.entries.map((e, i) => {
                   const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;

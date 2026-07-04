@@ -60,7 +60,7 @@ function rowToEntry(r: EntryRow): MenuEntry {
 export async function getChapters(): Promise<Chapter[]> {
   const sql = db();
   const chapterRows = (await sql.query(
-    `SELECT id, title, lede, origin, footnotes
+    `SELECT id, title, lede, origin, footnotes, layout
        FROM chapters
       WHERE NOT is_hidden
       ORDER BY sort_order`,
@@ -70,6 +70,7 @@ export async function getChapters(): Promise<Chapter[]> {
     lede: string | null;
     origin: string | null;
     footnotes: string[];
+    layout: "cards" | "list";
   }[];
 
   const entryRows = (await sql.query(
@@ -91,6 +92,7 @@ export async function getChapters(): Promise<Chapter[]> {
     if (c.lede != null) ch.lede = c.lede;
     if (c.origin != null) ch.origin = c.origin;
     if (Array.isArray(c.footnotes) && c.footnotes.length) ch.footnotes = c.footnotes;
+    if (c.layout) ch.layout = c.layout;
     return ch;
   });
 }

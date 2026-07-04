@@ -10,8 +10,13 @@ CREATE TABLE IF NOT EXISTS chapters (
   origin      text,
   footnotes   jsonb NOT NULL DEFAULT '[]',     -- string[]
   sort_order  int  NOT NULL,
-  is_hidden   boolean NOT NULL DEFAULT false
+  is_hidden   boolean NOT NULL DEFAULT false,
+  -- Стиль отображения на сайте: 'cards' (плитки с фото, как краб) | 'list'
+  -- (простые строки, как напитки/соусы). Выбирается при создании категории.
+  layout      text NOT NULL DEFAULT 'cards'
 );
+-- Идемпотентно для уже засеянной базы:
+ALTER TABLE chapters ADD COLUMN IF NOT EXISTS layout text NOT NULL DEFAULT 'cards';
 
 CREATE TABLE IF NOT EXISTS entries (
   id           serial PRIMARY KEY,

@@ -9,14 +9,19 @@ const { chapters: dbRaw, rakiChapter: dbRaki } = await getMenu();
 
 // noteShort — новое производное поле (краткое описание), которого нет в menu.ts.
 // Для сверки ЯДРА миграции его убираем: сравниваем то, что реально пришло из дока.
-const dbChapters = dbRaw.map((c) => ({
-  ...c,
-  entries: c.entries.map((e) => {
-    const { noteShort: _drop, ...rest } = e;
-    void _drop;
-    return rest;
-  }),
-}));
+const dbChapters = dbRaw.map((c) => {
+  // layout и noteShort — новые производные поля, которых нет в menu.ts.
+  const { layout: _l, ...chapterRest } = c;
+  void _l;
+  return {
+    ...chapterRest,
+    entries: c.entries.map((e) => {
+      const { noteShort: _drop, ...rest } = e;
+      void _drop;
+      return rest;
+    }),
+  };
+});
 
 const diffs: string[] = [];
 

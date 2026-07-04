@@ -30,11 +30,23 @@ await sql.query("TRUNCATE entries, chapters, boards RESTART IDENTITY CASCADE");
 let chapterCount = 0;
 let entryCount = 0;
 
+// Стиль отображения: соусы = простой список; напитки (soft/tea/beer) тоже
+// список, но они сливаются в виртуальную секцию «Напитки» на фронте. Остальное —
+// карточки. (Совпадает с прежним зашитым LIST_CATEGORIES = {drinks, sauces}.)
+const LIST_CHAPTERS = new Set(["sauces", "soft", "tea", "beer"]);
 for (const [ci, ch] of chapters.entries()) {
   await sql.query(
-    `INSERT INTO chapters (id, title, lede, origin, footnotes, sort_order)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
-    [ch.id, ch.title, ch.lede ?? null, ch.origin ?? null, JSON.stringify(ch.footnotes ?? []), ci],
+    `INSERT INTO chapters (id, title, lede, origin, footnotes, sort_order, layout)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)`,
+    [
+      ch.id,
+      ch.title,
+      ch.lede ?? null,
+      ch.origin ?? null,
+      JSON.stringify(ch.footnotes ?? []),
+      ci,
+      LIST_CHAPTERS.has(ch.id) ? "list" : "cards",
+    ],
   );
   chapterCount++;
 

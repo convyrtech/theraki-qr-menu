@@ -159,6 +159,30 @@ export function parseVariant(text: string): { label: string; price: number } | n
   return { label, price };
 }
 
+/** Добавить новую категорию (в конец). layout: 'cards' | 'list'. Возвращает id. */
+export async function addChapter(
+  title: string,
+  layout: "cards" | "list",
+  actorId: number,
+): Promise<string> {
+  const t = title.trim();
+  if (!t) throw new Error("Название категории пустое.");
+  if (layout !== "cards" && layout !== "list") throw new Error("Неверный стиль категории.");
+  // Опаковый уникальный id (пользователь видит название, не id). Base36 времени.
+  const id = "cat_" + Date.now().toString(36);
+  const ord = (await dbQuery(`SELECT COALESCE(MAX(sort_order)+1, 0) AS next FROM chapters`)) as unknown as {
+    next: number;
+  }[];
+  await dbQuery(`INSERT INTO chapters (id, title, sort_order, layout) VALUES ($1,$2,$3,$4)`, [
+    id,
+    t,
+    Number(ord[0].next),
+    layout,
+  ]);
+  await audit(actorId, "add_chapter", null, { id, title: t, layout });
+  return id;
+}
+
 /** Добавить позицию в раздел (в конец). Возвращает id новой позиции. */
 export async function addEntry(
   chapterId: string,

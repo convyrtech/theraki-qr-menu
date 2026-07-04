@@ -14,6 +14,7 @@ import {
   softDelete,
   restoreEntry,
   addEntry,
+  addChapter,
   addVariant,
   updateVariant,
   deleteVariant,
@@ -67,6 +68,7 @@ export async function renderChapterList(): Promise<{ text: string; keyboard: Inl
     const mark = c.hidden > 0 ? ` · ${c.hidden} ⛔` : "";
     kb.text(`${c.title} · ${c.total}${mark}`, `ch:${c.id}`).row();
   }
+  kb.text("➕ Добавить категорию", "addchapter").row();
   const totalHidden = chapters.reduce((n, c) => n + c.hidden, 0);
   const text =
     `🦞 <b>Меню The Raki</b>\nВыберите раздел, чтобы посмотреть позиции.` +
@@ -514,6 +516,32 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     }
   });
 
+  // --- Добавить категорию (название → выбор стиля) -----------------------
+  bot.callbackQuery("addchapter", async (ctx) => {
+    await setState(ctx.from!.id, "addcatname", null);
+    const kb = new InlineKeyboard().text("Отмена", "menu");
+    await editTo(ctx, "➕ <b>Новая категория.</b>\nОтправьте <b>название</b>.\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^addcatgo:(cards|list)$/, async (ctx) => {
+    const layout = ctx.match![1] as "cards" | "list";
+    const st = await getState(ctx.from!.id);
+    if (st?.action !== "addcatlayout" || !st.payload.name) {
+      return void ctx.answerCallbackQuery({ text: "Диалог устарел, начните заново." });
+    }
+    try {
+      const id = await addChapter(String(st.payload.name), layout, ctx.from!.id);
+      await clearState(ctx.from!.id);
+      await changed();
+      await ctx.answerCallbackQuery({ text: "Категория создана." });
+      const res = await renderEntryList(id);
+      if (res) await editTo(ctx, "✓ Категория создана. Добавьте позиции:\n\n" + res.text, res.keyboard);
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
   // --- Добавить позицию (2 шага: название → цена) ------------------------
   bot.callbackQuery(/^addentry:(.+)$/, async (ctx) => {
     const chapterId = ctx.match![1];
@@ -549,6 +577,22 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
         await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
       }
       return;
+    }
+
+    // Название новой категории → предложить выбор стиля кнопками.
+    if (st.action === "addcatname") {
+      const name = value.trim();
+      if (!name) return void ctx.reply("Название пустое. Ещё раз или /cancel.");
+      await setState(ctx.from!.id, "addcatlayout", null, { name });
+      const kb = new InlineKeyboard()
+        .text("🖼 Карточки с фото", "addcatgo:cards")
+        .text("📋 Простой список", "addcatgo:list")
+        .row()
+        .text("Отмена", "menu");
+      return void ctx.reply(`Категория «${esc(name)}». Как показывать на сайте?`, {
+        parse_mode: "HTML",
+        reply_markup: kb,
+      });
     }
 
     // Добавление позиции (2 шага, payload) — entryId=null до создания.

@@ -33,6 +33,7 @@ export async function dbQuery<T = Record<string, unknown>>(text: string, params?
       await sleep(300 * (attempt + 1));
     }
   }
+  console.error("[db] запрос не удался после ретраев:", lastErr);
   // Единая понятная ошибка (её ловит хендлер бота и показывает владельцу).
   throw new Error("База недоступна (сеть). Попробуйте ещё раз через пару секунд.");
 }

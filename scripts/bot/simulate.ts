@@ -7,6 +7,7 @@ import { createBot } from "../../src/bot/bot";
 import { neon } from "@neondatabase/serverless";
 import { listEntries, getEntry } from "../../src/bot/menu-admin-db";
 import { getBoard } from "../../src/bot/raki-write-db";
+import { getChapters } from "../../src/lib/menu-db";
 
 const BOT_INFO: UserFromGetMe = {
   id: 8323960341,
@@ -255,6 +256,23 @@ async function main() {
   const sql = neon(process.env.DATABASE_URL!);
   await sql.query("DELETE FROM entries WHERE name='ТЕСТ-БЛЮДО'");
   await check("позиция удалена начисто", (await listEntries("garnish")).length === g0);
+
+  // === ДОБАВИТЬ КАТЕГОРИЮ с выбором стиля (self-cleaning) ===
+  console.log("\n=== ДОБАВИТЬ КАТЕГОРИЮ (стиль list) ===");
+  const catSql = neon(process.env.DATABASE_URL!);
+  await bot.handleUpdate(cb(ADMIN, "addchapter"));
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-КАТЕГОРИЯ")); // → предложение выбрать стиль
+  const styleBtns = calls.find((c) => c.buttons)?.buttons ?? [];
+  await check("после названия предложены кнопки стиля", styleBtns.some((b) => b.includes("Карточки")) && styleBtns.some((b) => b.includes("список")));
+  await bot.handleUpdate(cb(ADMIN, "addcatgo:list")); // выбрать «список»
+  const vit = await getChapters();
+  const cat = vit.find((c) => c.title === "ТЕСТ-КАТЕГОРИЯ");
+  await check("категория на витрине с layout=list", !!cat && cat.layout === "list");
+  // Очистка: удалить категорию (и её позиции, если были) начисто
+  await catSql.query("DELETE FROM entries WHERE chapter_id IN (SELECT id FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ')");
+  await catSql.query("DELETE FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ'");
+  await check("категория удалена начисто", !(await getChapters()).some((c) => c.title === "ТЕСТ-КАТЕГОРИЯ"));
 
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }
