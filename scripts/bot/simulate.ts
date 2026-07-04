@@ -286,6 +286,27 @@ async function main() {
   await bot.handleUpdate(cb(ADMIN, `flag:${id}:signature`)); // свежий апдейт — вернуть
   await check("метка возвращена в исходное", (await getEntry(id))!.signature === sigBefore);
 
+  // === ФОТО по ссылке (self-cleaning) ===
+  console.log("\n=== ФОТО ===");
+  const photoBefore = (await getEntry(id))!.photo;
+  const testUrl = "https://example.com/krab.jpg";
+  await bot.handleUpdate(cb(ADMIN, `photo:${id}`));
+  await bot.handleUpdate(msg(ADMIN, testUrl));
+  await check("фото-ссылка сохранена", (await getEntry(id))!.photo === testUrl);
+  const vitPhoto = (await getChapters())
+    .find((c) => c.id === "crab")
+    ?.entries.find((e) => e.name.startsWith("Камчатский краб с"))?.photo;
+  await check("витрина отдаёт e.photo", vitPhoto === testUrl);
+  // http-ссылка должна быть отклонена (не https)
+  await bot.handleUpdate(cb(ADMIN, `photo:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "http://плохо.jpg"));
+  await check("http-ссылка отклонена (фото не изменилось)", (await getEntry(id))!.photo === testUrl);
+  await bot.handleUpdate(msg(ADMIN, "/cancel"));
+  // убрать фото (вернуть исходное)
+  await bot.handleUpdate(cb(ADMIN, `photo:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "-"));
+  await check("фото убрано (вернулись к исходному)", (await getEntry(id))!.photo === (photoBefore ?? null));
+
   // === Инструкция: /help и кнопка «Инструкция» ===
   console.log("\n=== ИНСТРУКЦИЯ ===");
   calls.length = 0;

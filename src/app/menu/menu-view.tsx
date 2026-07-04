@@ -918,7 +918,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
             ) : (
               <div className="mn__cards">
                 {sec.entries.map((e, i) => {
-                const photo = DISH_PHOTO[e.name];
+                const photo = e.photo ?? DISH_PHOTO[e.name];
                 const showGroup = e.group && e.group !== sec.entries[i - 1]?.group;
                 return (
                   <Fragment key={e.name}>
@@ -997,7 +997,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
 
 /* ---------- КРУПНАЯ КАРТОЧКА БЛЮДА (тап по позиции) ---------- */
 function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void }) {
-  const photo = DISH_PHOTO[entry.name];
+  const photo = entry.photo ?? DISH_PHOTO[entry.name];
   return (
     <div className="mn__detail" role="dialog" aria-modal="true">
       <button className="mn__detail-bg" type="button" aria-label="Закрыть" onClick={onClose} />

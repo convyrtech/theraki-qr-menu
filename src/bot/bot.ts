@@ -10,6 +10,7 @@ import {
   setHidden,
   setPrice,
   setText,
+  setPhoto,
   setFlag,
   softDelete,
   restoreEntry,
@@ -146,6 +147,7 @@ export async function renderEntryCard(
   const isDrink = DRINK_CHAPTERS.has(e.chapterId);
   const marks = `${e.signature ? "◆ фирменная " : ""}${!isDrink && e.spicy ? "🌶 острая" : ""}`.trimEnd();
   lines.push(`🏷 Метки: ${marks || "—"}`);
+  lines.push(`🖼 Фото: ${e.photo ? "есть" : "нет"}`);
   if (e.noteShort) lines.push(``, `<b>Кратко:</b> <i>${esc(e.noteShort)}</i>`);
   if (e.note) lines.push(``, `<b>Подробно:</b> <i>${esc(e.note)}</i>`);
 
@@ -161,6 +163,8 @@ export async function renderEntryCard(
     .text("📄 Подробно", `full:${e.id}`)
     .row()
     .text(`📐 Форматы (${e.variants.length})`, `vars:${e.id}`)
+    .row()
+    .text(e.photo ? "🖼 Заменить фото" : "🖼 Добавить фото", `photo:${e.id}`)
     .row();
   // Метки: ◆ всегда; 🌶 — только для не-напитков.
   kb.text(e.signature ? "◆ убрать" : "◆ фирменная", `flag:${e.id}:signature`);
@@ -543,6 +547,20 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
+  // --- Фото по ссылке ----------------------------------------------------
+  bot.callbackQuery(/^photo:(\d+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    await setState(ctx.from!.id, "photo", id);
+    const kb = new InlineKeyboard().text("Отмена", `e:${id}`);
+    await editTo(
+      ctx,
+      "🖼 Пришлите <b>ссылку на фото</b> (начинается с <code>https://</code>).\n" +
+        "Чтобы <b>убрать</b> фото — отправьте «-».\n\nИли /cancel.",
+      kb,
+    );
+    await ack(ctx);
+  });
+
   // --- Форматы подачи (variants) ----------------------------------------
   bot.callbackQuery(/^vars:(\d+)$/, async (ctx) => {
     const res = await renderVariants(Number(ctx.match![1]));
@@ -682,6 +700,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
           return void ctx.reply("Нужно целое число, например 2500. Ещё раз или /cancel.");
         }
         await setPrice(st.entryId, price, ctx.from!.id);
+      } else if (st.action === "photo") {
+        // «-» убирает фото; иначе ждём https-ссылку (проверка в setPhoto).
+        await setPhoto(st.entryId, value === "-" ? null : value, ctx.from!.id);
       } else {
         const cfg = TEXT_PROMPTS[st.action];
         if (!cfg) {
@@ -818,7 +839,7 @@ async function applyAddEntryInput(ctx: Context, st: Dlg, value: string, changed:
  *  при многих 500 отключает вебхук. Сам ack некритичен, его провал глотаем. */
 async function ack(ctx: Context, opts?: { text?: string }) {
   try {
-    await ack(ctx, opts);
+    await ctx.answerCallbackQuery(opts);
   } catch (e) {
     console.error("[bot] answerCallbackQuery не прошёл (некритично):", e);
   }

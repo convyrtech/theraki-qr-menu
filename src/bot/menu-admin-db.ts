@@ -25,6 +25,7 @@ export type EntryFull = EntryBrief & {
   chapterId: string;
   note: string | null;
   noteShort: string | null;
+  photo: string | null;
   abv: string | null;
   variants: { label: string; price: number }[];
   signature: boolean;
@@ -99,7 +100,7 @@ export async function listDeleted(): Promise<{ id: number; name: string }[]> {
 export async function getEntry(id: number): Promise<EntryFull | null> {
   const rows = (await dbQuery(
     `SELECT id, chapter_id, name, note, note_short, price, unit, abv, variants,
-            signature, spicy, group_label, is_hidden
+            signature, spicy, group_label, photo, is_hidden
        FROM entries
       WHERE id = $1 AND NOT is_deleted`,
     [id],
@@ -116,6 +117,7 @@ export async function getEntry(id: number): Promise<EntryFull | null> {
     signature: boolean;
     spicy: boolean;
     group_label: string | null;
+    photo: string | null;
     is_hidden: boolean;
   }[];
   if (!rows.length) return null;
@@ -126,6 +128,7 @@ export async function getEntry(id: number): Promise<EntryFull | null> {
     name: r.name,
     note: r.note,
     noteShort: r.note_short,
+    photo: r.photo,
     price: r.price,
     unit: r.unit,
     abv: r.abv,

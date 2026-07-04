@@ -61,6 +61,20 @@ export async function setText(
   await audit(actorId, "text", entryId, { name: rows[0].name, field, old: rows[0].old, new: value });
 }
 
+/** Фото позиции по ссылке (или null — убрать). URL должен быть https:// —
+ *  иначе картинка не загрузится на https-сайте (mixed content). */
+export async function setPhoto(entryId: number, url: string | null, actorId: number): Promise<void> {
+  if (url !== null && !/^https:\/\/\S+$/i.test(url)) {
+    throw new Error("Нужна ссылка вида https://… (http и без ссылки не подойдут).");
+  }
+  const rows = (await dbQuery(`SELECT name, photo FROM entries WHERE id=$1 AND NOT is_deleted`, [
+    entryId,
+  ])) as unknown as { name: string; photo: string | null }[];
+  if (!rows.length) throw new Error("Позиция не найдена.");
+  await dbQuery(`UPDATE entries SET photo=$2, updated_at=now() WHERE id=$1`, [entryId, url]);
+  await audit(actorId, "photo", entryId, { name: rows[0].name, old: rows[0].photo, new: url });
+}
+
 /** Метки-тумблеры: signature (◆) / spicy (🌶). */
 const FLAG_FIELDS = { signature: "signature", spicy: "spicy" } as const;
 export type FlagField = keyof typeof FLAG_FIELDS;
