@@ -5,7 +5,16 @@
 // NB: без `server-only` — гоняется CLI-раннерами (tsx); импортируется только
 // серверным кодом (webhook route) и dev/simulate-скриптами.
 import { Bot, InlineKeyboard, type Context } from "grammy";
-import { listChapters, listEntries, getEntry } from "./menu-admin-db";
+import { listChapters, listEntries, getEntry, listDeleted } from "./menu-admin-db";
+import {
+  setHidden,
+  setPrice,
+  setText,
+  setFlag,
+  softDelete,
+  restoreEntry,
+} from "./menu-write-db";
+import { getState, setState, clearState } from "./bot-state-db";
 
 // --- Доступ -------------------------------------------------------------
 function adminIds(): Set<number> {
@@ -57,31 +66,69 @@ export async function renderEntryList(
   return { text, keyboard: kb };
 }
 
-/** Экран позиции: карточка. Фаза 3 — read-only (кнопки правки в Фазе 4). */
+/** Экран позиции: карточка с кнопками действий. */
 export async function renderEntryCard(
   entryId: number,
 ): Promise<{ text: string; keyboard: InlineKeyboard } | null> {
   const e = await getEntry(entryId);
   if (!e) return null;
   const lines = [
-    `${e.isHidden ? "⛔ <b>СКРЫТА</b> · " : ""}<b>${e.name}</b>`,
+    `${e.isHidden ? "⛔ <b>СКРЫТА (в стоп-листе)</b>\n" : ""}<b>${e.name}</b>`,
     ``,
-    `Цена: <b>${rub(e.price)}</b>${e.unit ? ` / ${e.unit}` : ""}`,
+    `💰 Цена: <b>${rub(e.price)}</b>${e.unit ? ` / ${e.unit}` : ""}`,
   ];
   if (e.variants.length) {
-    lines.push(`Форматы: ${e.variants.map((v) => `${v.label} — ${rub(v.price)}`).join(" · ")}`);
+    lines.push(`📐 Форматы: ${e.variants.map((v) => `${v.label} — ${rub(v.price)}`).join(" · ")}`);
   }
-  if (e.abv) lines.push(`Крепость: ${e.abv}`);
-  if (e.signature) lines.push(`◆ Фирменная`);
-  if (e.spicy) lines.push(`🌶 Острая`);
-  if (e.note) lines.push(``, `<i>${e.note}</i>`);
-  const kb = new InlineKeyboard().text("◀️ Назад", `ch:${e.chapterId}`);
+  if (e.abv) lines.push(`🍺 Крепость: ${e.abv}`);
+  lines.push(`🏷 Метки: ${e.signature ? "◆ фирменная " : ""}${e.spicy ? "🌶 острая" : ""}`.trimEnd());
+  if (e.noteShort) lines.push(``, `<b>Кратко:</b> <i>${e.noteShort}</i>`);
+  if (e.note) lines.push(``, `<b>Подробно:</b> <i>${e.note}</i>`);
+
+  const kb = new InlineKeyboard()
+    .text(e.isHidden ? "♻️ Вернуть в меню" : "🙈 Скрыть (стоп-лист)", `${e.isHidden ? "unhide" : "hide"}:${e.id}`)
+    .row()
+    .text("💰 Цена", `price:${e.id}`)
+    .text("⚖️ Грамовка", `unit:${e.id}`)
+    .row()
+    .text("✏️ Название", `name:${e.id}`)
+    .row()
+    .text("📝 Кратко", `short:${e.id}`)
+    .text("📄 Подробно", `full:${e.id}`)
+    .row()
+    .text(e.signature ? "◆ убрать" : "◆ фирменная", `flag:${e.id}:signature`)
+    .text(e.spicy ? "🌶 убрать" : "🌶 острая", `flag:${e.id}:spicy`)
+    .row()
+    .text("🗑 Удалить", `del:${e.id}`)
+    .row()
+    .text("◀️ Назад", `ch:${e.chapterId}`);
   return { text: lines.join("\n"), keyboard: kb };
 }
 
+// Подписи диалогов ввода: какое поле правим и как просим ввести.
+const TEXT_PROMPTS: Record<string, { field: "name" | "unit" | "noteShort" | "note"; prompt: string; allowEmpty: boolean }> = {
+  price: { field: "name", prompt: "", allowEmpty: false }, // price обрабатывается отдельно
+  name: { field: "name", prompt: "✏️ Отправьте новое <b>название</b> позиции.", allowEmpty: false },
+  unit: { field: "unit", prompt: "⚖️ Отправьте <b>грамовку</b> (напр. «180 г», «0,5 л», «кг»). «-» — убрать.", allowEmpty: true },
+  short: { field: "noteShort", prompt: "📝 Отправьте <b>краткое описание</b> (одна строка для карточки). «-» — убрать.", allowEmpty: true },
+  full: { field: "note", prompt: "📄 Отправьте <b>развёрнутое описание</b> (полный текст в детали). «-» — убрать.", allowEmpty: true },
+};
+
+export type BotOptions = {
+  /** Вызывается после успешной правки — в проде дёргает revalidateTag('menu'). */
+  onMenuChanged?: () => void | Promise<void>;
+};
+
 // --- Сборка бота --------------------------------------------------------
-export function createBot(token: string): Bot {
+export function createBot(token: string, opts: BotOptions = {}): Bot {
   const bot = new Bot(token);
+  const changed = async () => {
+    try {
+      await opts.onMenuChanged?.();
+    } catch (e) {
+      console.error("[bot] onMenuChanged упал:", e);
+    }
+  };
 
   // Whitelist: всё, кроме админов, вежливо отбиваем.
   bot.use(async (ctx, next) => {
@@ -94,6 +141,7 @@ export function createBot(token: string): Bot {
   });
 
   bot.command("start", async (ctx) => {
+    await clearState(ctx.from!.id);
     const { text, keyboard } = await renderChapterList();
     await ctx.reply(
       "Привет! Это бот управления меню The Raki.\nКоманда /menu — открыть разделы.\n\n" + text,
@@ -102,8 +150,16 @@ export function createBot(token: string): Bot {
   });
 
   bot.command("menu", async (ctx) => {
+    await clearState(ctx.from!.id);
     const { text, keyboard } = await renderChapterList();
     await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+  });
+
+  bot.command("cancel", async (ctx) => {
+    const st = await getState(ctx.from!.id);
+    await clearState(ctx.from!.id);
+    if (st?.entryId) await showCard(ctx, st.entryId, "Отменено.");
+    else await ctx.reply("Отменено. /menu — разделы.");
   });
 
   bot.callbackQuery("menu", async (ctx) => {
@@ -113,19 +169,141 @@ export function createBot(token: string): Bot {
   });
 
   bot.callbackQuery(/^ch:(.+)$/, async (ctx) => {
-    const chapterId = ctx.match![1];
-    const res = await renderEntryList(chapterId);
+    const res = await renderEntryList(ctx.match![1]);
     if (!res) return void ctx.answerCallbackQuery({ text: "Раздел не найден." });
     await editTo(ctx, res.text, res.keyboard);
     await ctx.answerCallbackQuery();
   });
 
   bot.callbackQuery(/^e:(\d+)$/, async (ctx) => {
-    const entryId = Number(ctx.match![1]);
-    const res = await renderEntryCard(entryId);
+    const res = await renderEntryCard(Number(ctx.match![1]));
     if (!res) return void ctx.answerCallbackQuery({ text: "Позиция не найдена." });
     await editTo(ctx, res.text, res.keyboard);
     await ctx.answerCallbackQuery();
+  });
+
+  // --- Операции «в один тап» ---------------------------------------------
+  bot.callbackQuery(/^(hide|unhide):(\d+)$/, async (ctx) => {
+    const hide = ctx.match![1] === "hide";
+    const id = Number(ctx.match![2]);
+    try {
+      await setHidden(id, hide, ctx.from!.id);
+      await changed();
+      await rerenderCard(ctx, id);
+      await ctx.answerCallbackQuery({ text: hide ? "Скрыта — в стоп-листе." : "Возвращена в меню." });
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
+  bot.callbackQuery(/^flag:(\d+):(signature|spicy)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    const flag = ctx.match![2] as "signature" | "spicy";
+    try {
+      const cur = await getEntry(id);
+      if (!cur) return void ctx.answerCallbackQuery({ text: "Позиция не найдена." });
+      const next = flag === "signature" ? !cur.signature : !cur.spicy;
+      await setFlag(id, flag, next, ctx.from!.id);
+      await changed();
+      await rerenderCard(ctx, id);
+      await ctx.answerCallbackQuery({ text: "Метка обновлена." });
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
+  bot.callbackQuery(/^del:(\d+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    const kb = new InlineKeyboard()
+      .text("🗑 Да, удалить", `delyes:${id}`)
+      .text("Отмена", `e:${id}`);
+    await editTo(ctx, "Удалить позицию? Её можно будет восстановить командой /deleted.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^delyes:(\d+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    try {
+      const cur = await getEntry(id);
+      await softDelete(id, ctx.from!.id);
+      await changed();
+      await ctx.answerCallbackQuery({ text: "Удалено." });
+      if (cur) {
+        const res = await renderEntryList(cur.chapterId);
+        if (res) await editTo(ctx, res.text, res.keyboard);
+      }
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
+  // Восстановление удалённых
+  bot.command("deleted", async (ctx) => {
+    const rows = await listDeleted();
+    if (!rows.length) return void ctx.reply("Удалённых позиций нет.");
+    const kb = new InlineKeyboard();
+    for (const r of rows) kb.text(`♻️ ${r.name}`, `restore:${r.id}`).row();
+    await ctx.reply("Удалённые позиции — тап, чтобы восстановить:", { reply_markup: kb });
+  });
+
+  bot.callbackQuery(/^restore:(\d+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    try {
+      await restoreEntry(id, ctx.from!.id);
+      await changed();
+      await ctx.answerCallbackQuery({ text: "Восстановлено." });
+      await showCard(ctx, id, "♻️ Восстановлено.");
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
+  // --- Диалоги ввода: цена и текстовые поля ------------------------------
+  bot.callbackQuery(/^(price|unit|name|short|full):(\d+)$/, async (ctx) => {
+    const action = ctx.match![1];
+    const id = Number(ctx.match![2]);
+    await setState(ctx.from!.id, action, id);
+    const kb = new InlineKeyboard().text("Отмена", `e:${id}`);
+    const prompt =
+      action === "price"
+        ? "💰 Отправьте новую <b>цену</b> числом (например 2500)."
+        : TEXT_PROMPTS[action].prompt;
+    await editTo(ctx, prompt + "\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  // Единственный обработчик текста: если у пользователя открыт диалог — применяем.
+  bot.on("message:text", async (ctx) => {
+    const st = await getState(ctx.from!.id);
+    if (!st || st.entryId == null) {
+      return void ctx.reply("Не понял. /menu — открыть разделы меню.");
+    }
+    const value = ctx.message.text.trim();
+    try {
+      if (st.action === "price") {
+        const price = Number(value.replace(/\s/g, "").replace(",", "."));
+        if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
+          return void ctx.reply("Нужно целое число, например 2500. Ещё раз или /cancel.");
+        }
+        await setPrice(st.entryId, price, ctx.from!.id);
+      } else {
+        const cfg = TEXT_PROMPTS[st.action];
+        if (!cfg) {
+          await clearState(ctx.from!.id);
+          return void ctx.reply("Диалог сброшен. /menu.");
+        }
+        const v = value === "-" && cfg.allowEmpty ? null : value;
+        if (v === "" || (v === null && !cfg.allowEmpty)) {
+          return void ctx.reply("Пустое значение недопустимо. Ещё раз или /cancel.");
+        }
+        await setText(st.entryId, cfg.field, v, ctx.from!.id);
+      }
+      await clearState(ctx.from!.id);
+      await changed();
+      await showCard(ctx, st.entryId, "✓ Сохранено.");
+    } catch (e) {
+      await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+    }
   });
 
   bot.catch((err) => {
@@ -133,6 +311,24 @@ export function createBot(token: string): Bot {
   });
 
   return bot;
+}
+
+/** Перерисовать карточку на месте (после one-tap правки). */
+async function rerenderCard(ctx: Context, entryId: number) {
+  const res = await renderEntryCard(entryId);
+  if (res) await editTo(ctx, res.text, res.keyboard);
+}
+
+/** Показать карточку новым сообщением (после диалога/восстановления). */
+async function showCard(ctx: Context, entryId: number, prefix?: string) {
+  const res = await renderEntryCard(entryId);
+  if (!res) return void ctx.reply((prefix ? prefix + " " : "") + "Позиция не найдена.");
+  if (prefix) await ctx.reply(prefix);
+  await ctx.reply(res.text, { parse_mode: "HTML", reply_markup: res.keyboard });
+}
+
+function errText(e: unknown): string {
+  return e instanceof Error ? e.message : "Ошибка. Попробуйте ещё раз.";
 }
 
 /** Правит текущее сообщение (навигация «на месте»), с фолбэком на новое. */

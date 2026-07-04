@@ -55,3 +55,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
   entry_id     int,
   details      jsonb NOT NULL DEFAULT '{}'    -- {field, old, new, name}
 );
+
+-- Состояние диалога бота (многошаговый ввод: «пришлите новую цену…»).
+-- В БД, а не в памяти — чтобы переживало смену лямбд в serverless.
+CREATE TABLE IF NOT EXISTS bot_state (
+  user_id     bigint PRIMARY KEY,
+  action      text NOT NULL,                  -- price/unit/name/short/full/add:<chapter>…
+  entry_id    int,
+  payload     jsonb NOT NULL DEFAULT '{}',    -- промежуточные данные (для многошаговых)
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);

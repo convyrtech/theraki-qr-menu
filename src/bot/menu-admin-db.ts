@@ -30,6 +30,7 @@ export type EntryBrief = {
 export type EntryFull = EntryBrief & {
   chapterId: string;
   note: string | null;
+  noteShort: string | null;
   abv: string | null;
   variants: { label: string; price: number }[];
   signature: boolean;
@@ -71,11 +72,20 @@ export async function listEntries(chapterId: string): Promise<EntryBrief[]> {
   return rows.map((r) => ({ id: r.id, name: r.name, price: r.price, unit: r.unit, isHidden: r.is_hidden }));
 }
 
+/** Удалённые позиции (для команды восстановления /deleted). */
+export async function listDeleted(): Promise<{ id: number; name: string }[]> {
+  const sql = db();
+  const rows = (await sql.query(
+    `SELECT id, name FROM entries WHERE is_deleted ORDER BY updated_at DESC`,
+  )) as unknown as { id: number; name: string }[];
+  return rows.map((r) => ({ id: r.id, name: r.name }));
+}
+
 /** Полная карточка позиции (для экрана позиции в боте). */
 export async function getEntry(id: number): Promise<EntryFull | null> {
   const sql = db();
   const rows = (await sql.query(
-    `SELECT id, chapter_id, name, note, price, unit, abv, variants,
+    `SELECT id, chapter_id, name, note, note_short, price, unit, abv, variants,
             signature, spicy, group_label, is_hidden
        FROM entries
       WHERE id = $1 AND NOT is_deleted`,
@@ -85,6 +95,7 @@ export async function getEntry(id: number): Promise<EntryFull | null> {
     chapter_id: string;
     name: string;
     note: string | null;
+    note_short: string | null;
     price: number;
     unit: string | null;
     abv: string | null;
@@ -101,6 +112,7 @@ export async function getEntry(id: number): Promise<EntryFull | null> {
     chapterId: r.chapter_id,
     name: r.name,
     note: r.note,
+    noteShort: r.note_short,
     price: r.price,
     unit: r.unit,
     abv: r.abv,

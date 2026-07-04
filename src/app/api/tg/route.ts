@@ -3,6 +3,7 @@
 // Регистрация вебхука — scripts/bot/set-webhook.ts (или npm run bot:set-webhook).
 import { webhookCallback } from "grammy";
 import { createBot } from "@/bot/bot";
+import { revalidateMenu } from "@/lib/revalidate-menu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ function getHandle() {
     handlePromise = (async () => {
       const token = process.env.TG_BOT_TOKEN;
       if (!token) throw new Error("TG_BOT_TOKEN не задан.");
-      const bot = createBot(token);
+      const bot = createBot(token, { onMenuChanged: () => revalidateMenu() });
       await bot.init();
       // Адаптер "std/http" даёт обработчик (Request) => Promise<Response>.
       return webhookCallback(bot, "std/http", {

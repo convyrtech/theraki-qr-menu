@@ -4,7 +4,7 @@
 // Запуск: node --env-file=.env.local --import tsx scripts/bot/simulate.ts
 import type { UserFromGetMe } from "grammy/types";
 import { createBot } from "../../src/bot/bot";
-import { listEntries } from "../../src/bot/menu-admin-db";
+import { listEntries, getEntry } from "../../src/bot/menu-admin-db";
 
 const BOT_INFO: UserFromGetMe = {
   id: 8323960341,
@@ -114,7 +114,59 @@ async function main() {
   await bot.handleUpdate(msg(STRANGER, "/menu"));
   dump("/menu (ЧУЖОЙ — ожидаем отказ)");
 
-  console.log("\nСимуляция завершена.");
+  // === Операции записи (self-cleaning: возвращаем всё в исходное) ===
+  const id = crab[0].id;
+  const before = (await getEntry(id))!;
+  const check = async (label: string, cond: boolean) =>
+    console.log(`  [${cond ? "OK" : "FAIL"}] ${label}`);
+
+  console.log("\n=== ОПЕРАЦИИ (позиция id " + id + ", «" + before.name + "») ===");
+
+  // Скрыть → вернуть
+  await bot.handleUpdate(cb(ADMIN, `hide:${id}`));
+  await check("после hide: is_hidden=true", (await getEntry(id))!.isHidden === true);
+  await bot.handleUpdate(cb(ADMIN, `unhide:${id}`));
+  await check("после unhide: is_hidden=false", (await getEntry(id))!.isHidden === false);
+
+  // Метка ◆ (toggle туда-обратно)
+  await bot.handleUpdate(cb(ADMIN, `flag:${id}:signature`));
+  await check("после flag signature: инвертирован", (await getEntry(id))!.signature === !before.signature);
+  await bot.handleUpdate(cb(ADMIN, `flag:${id}:signature`));
+  await check("после повторного flag: вернулся", (await getEntry(id))!.signature === before.signature);
+  calls.length = 0;
+
+  // Диалог цены: тап «Цена» → ввод «12345» → проверка → вернуть
+  await bot.handleUpdate(cb(ADMIN, `price:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "12345"));
+  await check("после диалога цены: price=12345", (await getEntry(id))!.price === 12345);
+  await bot.handleUpdate(cb(ADMIN, `price:${id}`));
+  await bot.handleUpdate(msg(ADMIN, String(before.price)));
+  await check("цена возвращена", (await getEntry(id))!.price === before.price);
+
+  // Невалидная цена — не должна примениться
+  await bot.handleUpdate(cb(ADMIN, `price:${id}`));
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "абв"));
+  await check("невалидная цена отклонена (price не изменилась)", (await getEntry(id))!.price === before.price);
+  console.log("    ответ на 'абв': " + (calls.find((c) => c.text)?.text ?? "—"));
+  await bot.handleUpdate(msg(ADMIN, "/cancel"));
+
+  // Диалог названия: тап → ввод → проверка → вернуть
+  await bot.handleUpdate(cb(ADMIN, `name:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-ИМЯ"));
+  await check("после диалога названия: name=ТЕСТ-ИМЯ", (await getEntry(id))!.name === "ТЕСТ-ИМЯ");
+  await bot.handleUpdate(cb(ADMIN, `name:${id}`));
+  await bot.handleUpdate(msg(ADMIN, before.name));
+  await check("название возвращено", (await getEntry(id))!.name === before.name);
+
+  // Удалить → восстановить
+  await bot.handleUpdate(cb(ADMIN, `del:${id}`));
+  await bot.handleUpdate(cb(ADMIN, `delyes:${id}`));
+  await check("после delete: getEntry=null (скрыт из витрины)", (await getEntry(id)) === null);
+  await bot.handleUpdate(cb(ADMIN, `restore:${id}`));
+  await check("после restore: снова доступна", (await getEntry(id)) !== null);
+
+  console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }
 
 main().catch((e) => {
