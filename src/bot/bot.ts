@@ -90,6 +90,11 @@ const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 const esc = (s: string | null | undefined): string =>
   (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+// Обрезка длинного текста для показа в карточке: очень длинное описание иначе
+// может перевалить лимит сообщения Telegram (4096) → карточка не откроется.
+// В БД и на сайте текст остаётся полным.
+const trunc = (s: string, n = 500): string => (s.length > n ? s.slice(0, n) + "…" : s);
+
 /** Экран /menu: список глав с числом позиций и скрытых. */
 export async function renderChapterList(): Promise<{ text: string; keyboard: InlineKeyboard }> {
   const chapters = await listChapters();
@@ -151,8 +156,8 @@ export async function renderEntryCard(
   const marks = `${e.signature ? "◆ фирменная " : ""}${!isDrink && e.spicy ? "🌶 острая" : ""}`.trimEnd();
   lines.push(`🏷 Метки: ${marks || "—"}`);
   lines.push(`🖼 Фото: ${e.photo ? "есть" : "нет"}`);
-  if (e.noteShort) lines.push(``, `<b>Кратко:</b> <i>${esc(e.noteShort)}</i>`);
-  if (e.note) lines.push(``, `<b>Подробно:</b> <i>${esc(e.note)}</i>`);
+  if (e.noteShort) lines.push(``, `<b>Кратко:</b> <i>${esc(trunc(e.noteShort))}</i>`);
+  if (e.note) lines.push(``, `<b>Подробно:</b> <i>${esc(trunc(e.note))}</i>`);
 
   const kb = new InlineKeyboard()
     .text(e.isHidden ? "♻️ Вернуть в меню" : "🙈 Скрыть (стоп-лист)", `${e.isHidden ? "unhide" : "hide"}:${e.id}`)
@@ -307,6 +312,16 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       if (ctx.callbackQuery) await ack(ctx, { text: "Доступ только для персонала." });
       else if (ctx.message) await ctx.reply("Этот бот управляет меню The Raki и доступен только персоналу.");
       return; // не передаём дальше
+    }
+    await next();
+  });
+
+  // Навигация сбрасывает незавершённый диалог ввода: тап по экрану-списку/карточке
+  // означает «я перешёл к другому», иначе следующее введённое число/текст молча
+  // ушло бы в позицию, где диалог был открыт. Action-кнопки (правки) сюда не входят.
+  bot.on("callback_query:data", async (ctx, next) => {
+    if (/^(menu|raki|help|ch:|e:|vars:|rprep:|rrec:)/.test(ctx.callbackQuery.data)) {
+      await clearState(ctx.from!.id);
     }
     await next();
   });

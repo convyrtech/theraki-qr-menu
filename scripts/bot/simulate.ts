@@ -330,6 +330,76 @@ async function main() {
   await bot.handleUpdate(msg(ADMIN, "/export"));
   await check("/export отправляет документ (sendDocument)", calls.some((c) => c.method === "sendDocument"));
 
+  // ================= EDGE-КЕЙСЫ (нелогичные пути) =================
+  console.log("\n=== EDGE-КЕЙСЫ ===");
+  await bot.handleUpdate(msg(ADMIN, "/cancel")); // чистим состояние
+
+  // 1) Текст без открытого диалога
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "случайный текст"));
+  await check("текст без диалога → подсказка, не краш", calls.some((c) => (c.text ?? "").includes("Не понял")));
+
+  // 2) addskip вне мастера
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "addskip"));
+  await check("addskip вне мастера → не краш", calls.length > 0);
+
+  // 3) Несуществующая позиция / раздел / рецепт
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "e:99999999"));
+  await check("e:<нет> → не найдена (ответ есть)", calls.length > 0);
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "ch:нетраздела"));
+  await check("ch:<нет> → не краш", calls.length > 0);
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "rrecdel:boiled:999"));
+  await check("rrecdel вне диапазона → не краш", calls.length > 0);
+
+  // 4) Формат: без '=' и с отрицательной ценой — отклонить
+  await bot.handleUpdate(cb(ADMIN, `varadd:${id}`));
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "текст без равно"));
+  await check("формат без '=' отклонён", calls.some((c) => (c.text ?? "").includes("метка = цена")));
+  await bot.handleUpdate(msg(ADMIN, "0,5 кг = -5"));
+  await check("формат с отрицат. ценой отклонён", (await getEntry(id))!.variants.length === before.variants.length);
+  await bot.handleUpdate(msg(ADMIN, "/cancel"));
+
+  // 5) Навигация во время диалога цены (dangling state) — куда уйдёт число?
+  const otherId = (await listEntries("hot"))[0].id;
+  const idP0 = (await getEntry(id))!.price;
+  const otherP0 = (await getEntry(otherId))!.price;
+  await bot.handleUpdate(cb(ADMIN, `price:${id}`)); // диалог цены для id
+  await bot.handleUpdate(cb(ADMIN, `e:${otherId}`)); // ушли на другую позицию
+  await bot.handleUpdate(msg(ADMIN, "55555")); // ввели число
+  const idP1 = (await getEntry(id))!.price;
+  const otherP1 = (await getEntry(otherId))!.price;
+  console.log(`    dangling: id ${idP0}->${idP1}, other ${otherP0}->${otherP1}`);
+  await check("число после навигации НЕ ушло никуда (диалог сброшен)", idP1 === idP0 && otherP1 === otherP0);
+  // откат, если всё-таки ушло в id
+  if (idP1 !== idP0) {
+    await bot.handleUpdate(cb(ADMIN, `price:${id}`));
+    await bot.handleUpdate(msg(ADMIN, String(idP0)));
+  }
+  await bot.handleUpdate(msg(ADMIN, "/cancel"));
+
+  // 6) Правка удалённой позиции: создать врем., удалить, затем price-диалог на неё
+  const tmpId = await (async () => {
+    await bot.handleUpdate(cb(ADMIN, "addentry:garnish"));
+    await bot.handleUpdate(msg(ADMIN, "ВРЕМЕННАЯ"));
+    await bot.handleUpdate(msg(ADMIN, "100"));
+    await bot.handleUpdate(cb(ADMIN, "addskip")); // грамовка
+    await bot.handleUpdate(cb(ADMIN, "addskip")); // описание
+    await bot.handleUpdate(cb(ADMIN, "addskip")); // фото → готово
+    return (await listEntries("garnish")).find((e) => e.name === "ВРЕМЕННАЯ")!.id;
+  })();
+  await bot.handleUpdate(cb(ADMIN, `price:${tmpId}`)); // открыли диалог цены
+  await neon(process.env.DATABASE_URL!).query("UPDATE entries SET is_deleted=true WHERE id=$1", [tmpId]); // удалили «снаружи»
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "200")); // вводим цену для удалённой
+  await check("цена для удалённой позиции → ошибка, не краш", calls.some((c) => (c.text ?? "").toLowerCase().includes("не найдена")));
+  await bot.handleUpdate(msg(ADMIN, "/cancel"));
+  await neon(process.env.DATABASE_URL!).query("DELETE FROM entries WHERE name='ВРЕМЕННАЯ'");
+
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }
 
