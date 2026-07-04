@@ -4,8 +4,8 @@
 // Операции правки — Фаза 4.
 // NB: без `server-only` — гоняется CLI-раннерами (tsx); импортируется только
 // серверным кодом (webhook route) и dev/simulate-скриптами.
-import { Bot, InlineKeyboard, type Context } from "grammy";
-import { listChapters, listEntries, getEntry, listDeleted, getChapterMeta } from "./menu-admin-db";
+import { Bot, InlineKeyboard, InputFile, type Context } from "grammy";
+import { listChapters, listEntries, getEntry, listDeleted, getChapterMeta, exportAll } from "./menu-admin-db";
 import {
   setHidden,
   setPrice,
@@ -20,7 +20,7 @@ import {
   deleteVariant,
   parseVariant,
 } from "./menu-write-db";
-import { getState, setState, clearState } from "./bot-state-db";
+import { getState, setState, clearState, claimUpdate } from "./bot-state-db";
 import {
   getBoard,
   setSizePrice,
@@ -252,6 +252,19 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     }
   };
 
+  // Идемпотентность (первым): дубль-доставку того же апдейта пропускаем, чтобы
+  // повтор не создал вторую позицию/рецепт. При сбое дедупа — обрабатываем
+  // (fail-open: доступность важнее редкого дубля).
+  bot.use(async (ctx, next) => {
+    const uid = ctx.update.update_id;
+    try {
+      if (!(await claimUpdate(uid))) return; // уже обработан — молча выходим
+    } catch (e) {
+      console.error("[bot] dedup не сработал, обрабатываем как есть:", e);
+    }
+    await next();
+  });
+
   // Whitelist: всё, кроме админов, вежливо отбиваем.
   bot.use(async (ctx, next) => {
     if (!isAdmin(ctx.from?.id)) {
@@ -275,6 +288,19 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await clearState(ctx.from!.id);
     const { text, keyboard } = await renderChapterList();
     await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+  });
+
+  bot.command("export", async (ctx) => {
+    try {
+      const data = await exportAll();
+      const json = JSON.stringify({ exportedAt: new Date().toISOString(), ...data }, null, 2);
+      const stamp = new Date().toISOString().slice(0, 10);
+      await ctx.replyWithDocument(new InputFile(Buffer.from(json, "utf8"), `menu-backup-${stamp}.json`), {
+        caption: "Бэкап меню (все категории, позиции, доска раков).",
+      });
+    } catch (e) {
+      await ctx.reply("Не удалось сделать бэкап: " + errText(e));
+    }
   });
 
   bot.command("cancel", async (ctx) => {

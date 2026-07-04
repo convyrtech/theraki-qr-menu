@@ -43,3 +43,21 @@ export async function setState(
 export async function clearState(userId: number): Promise<void> {
   await dbQuery(`DELETE FROM bot_state WHERE user_id=$1`, [userId]);
 }
+
+/**
+ * Идемпотентность: пытается «застолбить» апдейт. true — впервые (обрабатываем),
+ * false — уже обработан (дубль, пропускаем). Изредка подчищает старые записи.
+ */
+export async function claimUpdate(updateId: number): Promise<boolean> {
+  const rows = (await dbQuery(
+    `INSERT INTO processed_updates (update_id) VALUES ($1)
+     ON CONFLICT (update_id) DO NOTHING RETURNING update_id`,
+    [updateId],
+  )) as unknown as { update_id: number }[];
+  const first = rows.length > 0;
+  // Дешёвая нечастая уборка (~1 из 50): удалить записи старше суток.
+  if (first && updateId % 50 === 0) {
+    await dbQuery(`DELETE FROM processed_updates WHERE at < now() - interval '1 day'`);
+  }
+  return first;
+}

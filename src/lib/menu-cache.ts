@@ -24,7 +24,9 @@ const loadMenu = unstable_cache(
     return { chapters, rakiChapter, fallback: false };
   },
   ["menu-payload-v1"],
-  { tags: [MENU_TAG] },
+  // tags — мгновенная ревалидация ботом; revalidate 300с — страховка: если
+  // revalidateTag однажды не сработает, сайт всё равно освежится за ≤5 мин.
+  { tags: [MENU_TAG], revalidate: 300 },
 );
 
 /**

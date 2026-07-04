@@ -45,7 +45,9 @@ bot.api.config.use(async (_prev, method, payload) => {
   return { ok: true, result: { message_id: calls.length, date: 0, chat: { id: ADMIN, type: "private" } } } as never;
 });
 
-let uid = 1;
+// База update_id уникальна на запуск: processed_updates (дедуп) персистентна,
+// иначе повторный прогон принял бы старые id за дубли и всё пропустил.
+let uid = Math.floor(Date.now() / 1000) * 100;
 function msg(fromId: number, text: string) {
   // Telegram помечает команды сущностью bot_command — grammy по ней их и ловит.
   const entities = text.startsWith("/")
@@ -273,6 +275,22 @@ async function main() {
   await catSql.query("DELETE FROM entries WHERE chapter_id IN (SELECT id FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ')");
   await catSql.query("DELETE FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ'");
   await check("категория удалена начисто", !(await getChapters()).some((c) => c.title === "ТЕСТ-КАТЕГОРИЯ"));
+
+  // === ИДЕМПОТЕНТНОСТЬ: повтор ТОГО ЖЕ апдейта не срабатывает дважды ===
+  console.log("\n=== ИДЕМПОТЕНТНОСТЬ (дубль-доставка) ===");
+  const sigBefore = (await getEntry(id))!.signature;
+  const flagUpd = cb(ADMIN, `flag:${id}:signature`); // фиксированный update_id
+  await bot.handleUpdate(flagUpd); // переключит → !sigBefore
+  await bot.handleUpdate(flagUpd); // ТОТ ЖЕ update_id → дедуп пропустит
+  await check("дубль callback не откатил метку (сработал 1 раз)", (await getEntry(id))!.signature === !sigBefore);
+  await bot.handleUpdate(cb(ADMIN, `flag:${id}:signature`)); // свежий апдейт — вернуть
+  await check("метка возвращена в исходное", (await getEntry(id))!.signature === sigBefore);
+
+  // === /export: бэкап приходит документом ===
+  console.log("\n=== /export ===");
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "/export"));
+  await check("/export отправляет документ (sendDocument)", calls.some((c) => c.method === "sendDocument"));
 
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }

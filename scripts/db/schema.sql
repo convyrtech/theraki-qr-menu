@@ -61,6 +61,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details      jsonb NOT NULL DEFAULT '{}'    -- {field, old, new, name}
 );
 
+-- Идемпотентность: обработанные апдейты Telegram. Повторная доставка (вебхук
+-- не ответил 200 вовремя) не создаст дубль позиции/рецепта.
+CREATE TABLE IF NOT EXISTS processed_updates (
+  update_id  bigint PRIMARY KEY,
+  at         timestamptz NOT NULL DEFAULT now()
+);
+
 -- Состояние диалога бота (многошаговый ввод: «пришлите новую цену…»).
 -- В БД, а не в памяти — чтобы переживало смену лямбд в serverless.
 CREATE TABLE IF NOT EXISTS bot_state (

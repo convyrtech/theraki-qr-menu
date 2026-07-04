@@ -29,11 +29,14 @@ export async function dbQuery<T = Record<string, unknown>>(text: string, params?
       return (await raw().query(text, params)) as unknown as T[];
     } catch (e) {
       lastErr = e;
-      if (!isRetriable(e) || attempt === 2) break;
+      // Не-сетевую ошибку (нет таблицы, битый SQL, ограничение) пробрасываем
+      // как есть — её не лечит повтор, и маскировать под «сеть» нельзя.
+      if (!isRetriable(e)) throw e;
+      if (attempt === 2) break;
       await sleep(300 * (attempt + 1));
     }
   }
-  console.error("[db] запрос не удался после ретраев:", lastErr);
-  // Единая понятная ошибка (её ловит хендлер бота и показывает владельцу).
+  console.error("[db] сетевой сбой после ретраев:", lastErr);
+  // Понятная ошибка только для исчерпанных СЕТЕВЫХ ретраев.
   throw new Error("База недоступна (сеть). Попробуйте ещё раз через пару секунд.");
 }

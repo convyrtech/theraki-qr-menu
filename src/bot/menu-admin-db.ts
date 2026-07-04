@@ -64,6 +64,20 @@ export async function listEntries(chapterId: string): Promise<EntryBrief[]> {
   return rows.map((r) => ({ id: r.id, name: r.name, price: r.price, unit: r.unit, isHidden: r.is_hidden }));
 }
 
+/** Полный дамп меню для бэкапа (/export): все главы, позиции, доска раков. */
+export async function exportAll(): Promise<{
+  chapters: unknown[];
+  entries: unknown[];
+  board: unknown;
+}> {
+  const chapters = await dbQuery(`SELECT * FROM chapters ORDER BY sort_order`);
+  const entries = await dbQuery(`SELECT * FROM entries ORDER BY chapter_id, sort_order`);
+  const board = (await dbQuery(`SELECT data FROM boards WHERE id='raki-board'`)) as unknown as {
+    data: unknown;
+  }[];
+  return { chapters, entries, board: board[0]?.data ?? null };
+}
+
 /** Название одной главы (лёгкий запрос вместо полного listChapters). */
 export async function getChapterMeta(chapterId: string): Promise<{ id: string; title: string } | null> {
   const rows = (await dbQuery(`SELECT id, title FROM chapters WHERE id=$1`, [chapterId])) as unknown as {

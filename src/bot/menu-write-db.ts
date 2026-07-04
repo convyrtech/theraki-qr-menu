@@ -103,28 +103,45 @@ export async function restoreEntry(entryId: number, actorId: number): Promise<vo
 // --- Форматы подачи (variants: [{label, price}]) ------------------------
 export type Variant = { label: string; price: number };
 
-async function readVariants(entryId: number): Promise<{ name: string; variants: Variant[] }> {
-  const rows = (await dbQuery(`SELECT name, variants FROM entries WHERE id=$1 AND NOT is_deleted`, [
-    entryId,
-  ])) as unknown as { name: string; variants: Variant[] }[];
+async function readVariants(
+  entryId: number,
+): Promise<{ name: string; variants: Variant[]; version: string }> {
+  const rows = (await dbQuery(
+    `SELECT name, variants, updated_at::text AS version FROM entries WHERE id=$1 AND NOT is_deleted`,
+    [entryId],
+  )) as unknown as { name: string; variants: Variant[]; version: string }[];
   if (!rows.length) throw new Error("Позиция не найдена.");
-  return { name: rows[0].name, variants: Array.isArray(rows[0].variants) ? rows[0].variants : [] };
+  return {
+    name: rows[0].name,
+    variants: Array.isArray(rows[0].variants) ? rows[0].variants : [],
+    version: rows[0].version,
+  };
 }
 
-async function writeVariants(entryId: number, variants: Variant[], actorId: number, details: Record<string, unknown>) {
-  await dbQuery(`UPDATE entries SET variants=$2::jsonb, updated_at=now() WHERE id=$1`, [
-    entryId,
-    JSON.stringify(variants),
-  ]);
+async function writeVariants(
+  entryId: number,
+  variants: Variant[],
+  version: string,
+  actorId: number,
+  details: Record<string, unknown>,
+) {
+  // Оптимистичная блокировка: применяем, только если позицию не изменили параллельно.
+  const upd = (await dbQuery(
+    `UPDATE entries SET variants=$2::jsonb, updated_at=now() WHERE id=$1 AND updated_at::text=$3 RETURNING id`,
+    [entryId, JSON.stringify(variants), version],
+  )) as unknown as { id: number }[];
+  if (!upd.length) {
+    throw new Error("Позицию изменили параллельно — откройте «📐 Форматы» заново и повторите.");
+  }
   await audit(actorId, "variant", entryId, details);
 }
 
 export async function addVariant(entryId: number, label: string, price: number, actorId: number): Promise<void> {
   if (!label.trim()) throw new Error("Метка формата пустая.");
   if (!Number.isInteger(price) || price < 0) throw new Error("Цена — целое ≥ 0.");
-  const { name, variants } = await readVariants(entryId);
+  const { name, variants, version } = await readVariants(entryId);
   variants.push({ label: label.trim(), price });
-  await writeVariants(entryId, variants, actorId, { name, op: "add", label: label.trim(), price });
+  await writeVariants(entryId, variants, version, actorId, { name, op: "add", label: label.trim(), price });
 }
 
 export async function updateVariant(
@@ -136,17 +153,17 @@ export async function updateVariant(
 ): Promise<void> {
   if (!label.trim()) throw new Error("Метка формата пустая.");
   if (!Number.isInteger(price) || price < 0) throw new Error("Цена — целое ≥ 0.");
-  const { name, variants } = await readVariants(entryId);
+  const { name, variants, version } = await readVariants(entryId);
   if (!variants[idx]) throw new Error("Формат не найден.");
   variants[idx] = { label: label.trim(), price };
-  await writeVariants(entryId, variants, actorId, { name, op: "update", idx, label: label.trim(), price });
+  await writeVariants(entryId, variants, version, actorId, { name, op: "update", idx, label: label.trim(), price });
 }
 
 export async function deleteVariant(entryId: number, idx: number, actorId: number): Promise<void> {
-  const { name, variants } = await readVariants(entryId);
+  const { name, variants, version } = await readVariants(entryId);
   if (!variants[idx]) throw new Error("Формат не найден.");
   const [removed] = variants.splice(idx, 1);
-  await writeVariants(entryId, variants, actorId, { name, op: "delete", removed });
+  await writeVariants(entryId, variants, version, actorId, { name, op: "delete", removed });
 }
 
 /** Разбор строки «метка = цена» (например «0,5 кг = 1450»). */
