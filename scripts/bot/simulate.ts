@@ -244,17 +244,25 @@ async function main() {
   await bot.handleUpdate(cb(ADMIN, `vardel:${id}:${v.length - 1}`));
   await check("формат удалён (обратно)", (await getEntry(id))!.variants.length === vlen0);
 
-  // === ДОБАВИТЬ ПОЗИЦИЮ (2 шага) в «Гарниры», затем жёстко удалить ===
-  console.log("\n=== ДОБАВИТЬ ПОЗИЦИЮ (garnish) ===");
+  // === МАСТЕР ДОБАВЛЕНИЯ (название→цена→грамовка→описание→фото со «Пропустить») ===
+  console.log("\n=== МАСТЕР ДОБАВЛЕНИЯ (garnish) ===");
   const g0 = (await listEntries("garnish")).length;
   await bot.handleUpdate(cb(ADMIN, "addentry:garnish"));
-  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-БЛЮДО"));
-  await bot.handleUpdate(msg(ADMIN, "777"));
-  const gAfter = await listEntries("garnish");
-  const created = gAfter.find((e) => e.name === "ТЕСТ-БЛЮДО");
-  await check("позиция создана (+1)", gAfter.length === g0 + 1);
-  await check("название и цена верны", !!created && created.price === 777);
-  // Жёсткая очистка тестовой позиции (не soft-delete — чтобы не копить мусор)
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-БЛЮДО")); // название → шаг цены
+  await bot.handleUpdate(msg(ADMIN, "777")); // цена → СОЗДАЁТ + шаг грамовки
+  const created = (await listEntries("garnish")).find((e) => e.name === "ТЕСТ-БЛЮДО");
+  await check("позиция создана после цены (+1)", (await listEntries("garnish")).length === g0 + 1 && created?.price === 777);
+  const cid = created!.id;
+  await bot.handleUpdate(msg(ADMIN, "250 г")); // грамовка → шаг описания
+  await check("грамовка из мастера", (await getEntry(cid))!.unit === "250 г");
+  await bot.handleUpdate(msg(ADMIN, "Вкусное блюдо. Очень.")); // описание → шаг фото
+  const full = await getEntry(cid);
+  await check("описание из мастера (подробно)", full!.note === "Вкусное блюдо. Очень.");
+  await check("краткое авто = первая фраза", full!.noteShort === "Вкусное блюдо.");
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "addskip")); // пропустить фото → завершение
+  await check("после пропуска фото показана карточка", calls.some((c) => (c.text ?? "").includes("Позиция добавлена")));
+  // Жёсткая очистка тестовой позиции
   const sql = neon(process.env.DATABASE_URL!);
   await sql.query("DELETE FROM entries WHERE name='ТЕСТ-БЛЮДО'");
   await check("позиция удалена начисто", (await listEntries("garnish")).length === g0);

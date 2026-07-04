@@ -7,6 +7,7 @@
 import { Bot, InlineKeyboard, InputFile, type Context } from "grammy";
 import sharp from "sharp";
 import { savePhotoBytes, deletePhotoBytes } from "./photo-db";
+import { firstSentence } from "@/lib/text";
 import { listChapters, listEntries, getEntry, listDeleted, getChapterMeta, exportAll } from "./menu-admin-db";
 import {
   setHidden,
@@ -633,26 +634,54 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     const chapterId = ctx.match![1];
     await setState(ctx.from!.id, "addname", null, { chapterId });
     const kb = new InlineKeyboard().text("Отмена", `ch:${chapterId}`);
-    await editTo(ctx, "➕ <b>Новая позиция.</b>\nШаг 1/2 — отправьте <b>название</b>.\n\nИли /cancel.", kb);
+    await editTo(
+      ctx,
+      "➕ <b>Новая позиция.</b>\nШаг 1/5 — отправьте <b>название</b>.\n" +
+        "(дальше: цена, грамовка, описание, фото — необязательное можно пропустить)\n\nИли /cancel.",
+      kb,
+    );
     await ack(ctx);
+  });
+
+  // «⏭ Пропустить» шаг мастера: продвигаем на следующий шаг по текущему действию.
+  bot.callbackQuery("addskip", async (ctx) => {
+    const st = await getState(ctx.from!.id);
+    if (!st || st.entryId == null) return void ack(ctx, { text: "Мастер уже завершён." });
+    const eid = st.entryId;
+    await ack(ctx);
+    if (st.action === "addunit") {
+      await setState(ctx.from!.id, "adddesc", eid, {});
+      return void askWiz(ctx, "adddesc", eid);
+    }
+    if (st.action === "adddesc") {
+      await setState(ctx.from!.id, "addphoto", eid, {});
+      return void askWiz(ctx, "addphoto", eid);
+    }
+    // addphoto — последний шаг: завершаем, показываем карточку.
+    await clearState(ctx.from!.id);
+    await showCard(ctx, eid, "✓ Позиция добавлена.");
   });
 
   // Приём фото/файла: работает, когда открыт диалог «🖼 Фото». Бот скачивает,
   // сжимает в WebP и кладёт в БД; entry.photo = внутренний версионированный URL.
   bot.on(["message:photo", "message:document"], async (ctx) => {
     const st = await getState(ctx.from!.id);
-    if (st?.action !== "photo" || st.entryId == null) {
+    const isPhotoStep = st?.action === "photo" || st?.action === "addphoto";
+    if (!isPhotoStep || st!.entryId == null) {
       return void ctx.reply("Чтобы поставить фото — откройте блюдо → «🖼 Фото», затем пришлите картинку.");
     }
-    const eid = st.entryId;
+    const eid = st!.entryId;
+    const wizard = st!.action === "addphoto"; // фото-шаг мастера добавления
     try {
       await ctx.reply("Загружаю фото…");
       await applyPhotoUpload(ctx, eid);
       await clearState(ctx.from!.id);
       await changed();
-      await showCard(ctx, eid, "✓ Фото обновлено.");
+      await showCard(ctx, eid, wizard ? "✓ Позиция добавлена (с фото)." : "✓ Фото обновлено.");
     } catch (e) {
-      await ctx.reply("Не получилось: " + errText(e) + "\nПришлите картинку ещё раз или /cancel.");
+      await ctx.reply(
+        "Не получилось: " + errText(e) + "\nПришлите картинку ещё раз" + (wizard ? " или «⏭ Пропустить»." : " или /cancel."),
+      );
     }
   });
 
@@ -700,10 +729,10 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       });
     }
 
-    // Добавление позиции (2 шага, payload) — entryId=null до создания.
-    if (st.action === "addname" || st.action === "addprice") {
+    // Мастер добавления позиции (название→цена→грамовка→описание→фото).
+    if (["addname", "addprice", "addunit", "adddesc", "addphoto"].includes(st.action)) {
       try {
-        await applyAddEntryInput(ctx, st, value, changed);
+        await applyAddWizard(ctx, st, value, changed);
       } catch (e) {
         await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
       }
@@ -865,28 +894,71 @@ async function applyVariantInput(ctx: Context, st: Dlg, value: string, changed: 
   if (res) await ctx.reply(res.text, { parse_mode: "HTML", reply_markup: res.keyboard });
 }
 
-/** Применить ввод добавления позиции (addname → addprice → создать). */
-async function applyAddEntryInput(ctx: Context, st: Dlg, value: string, changed: () => Promise<void>) {
+// Парсинг цены: целое ≥ 0 (допускаем пробелы/запятую). null — невалидно.
+function parsePrice(value: string): number | null {
+  const n = Number(value.replace(/\s/g, "").replace(",", "."));
+  return Number.isFinite(n) && n >= 0 && Number.isInteger(n) ? n : null;
+}
+
+// Мастер добавления позиции. Обязательны название+цена; грамовка/описание/фото —
+// со «Пропустить». Клавиатура шага и подсказки:
+const WIZ_PROMPT: Record<string, string> = {
+  addunit: "Шаг 3/5 — <b>грамовка</b> (например «180 г», «0,5 л», «кг»). Или пропустите.",
+  adddesc: "Шаг 4/5 — <b>описание</b> блюда одним текстом (короткое для карточки бот возьмёт из первой фразы). Или пропустите.",
+  addphoto: "Шаг 5/5 — пришлите <b>фото</b> блюда (можно файлом). Или пропустите.",
+};
+function wizKb(entryId: number): InlineKeyboard {
+  return new InlineKeyboard().text("⏭ Пропустить", "addskip").row().text("Отмена", `e:${entryId}`);
+}
+async function askWiz(ctx: Context, step: keyof typeof WIZ_PROMPT | string, entryId: number) {
+  await ctx.reply(WIZ_PROMPT[step] + "\n\n/cancel — отменить.", {
+    parse_mode: "HTML",
+    reply_markup: wizKb(entryId),
+  });
+}
+
+/** Текстовые шаги мастера добавления: название → цена → грамовка → описание. */
+async function applyAddWizard(ctx: Context, st: Dlg, value: string, changed: () => Promise<void>) {
   const uid = ctx.from!.id;
-  const chapterId = String(st.payload.chapterId);
   if (st.action === "addname") {
     const name = value.trim();
     if (!name) return void ctx.reply("Название пустое. Ещё раз или /cancel.");
-    await setState(uid, "addprice", null, { chapterId, name });
-    return void ctx.reply(`Шаг 2/2 — отправьте <b>цену</b> числом для «${esc(name)}».\n\nИли /cancel.`, {
+    await setState(uid, "addprice", null, { chapterId: String(st.payload.chapterId), name });
+    return void ctx.reply(`Шаг 2/5 — <b>цена</b> числом для «${esc(name)}».\n\n/cancel — отменить.`, {
       parse_mode: "HTML",
     });
   }
-  // addprice
-  const price = Number(value.replace(/\s/g, "").replace(",", "."));
-  if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
-    return void ctx.reply("Нужно целое число, например 650. Ещё раз или /cancel.");
+  if (st.action === "addprice") {
+    const price = parsePrice(value);
+    if (price == null) return void ctx.reply("Нужно целое число, например 650. Ещё раз или /cancel.");
+    const entryId = await addEntry(
+      String(st.payload.chapterId),
+      { name: String(st.payload.name), price },
+      uid,
+    );
+    await changed();
+    // Дальше id позиции держим в поле entryId состояния.
+    await setState(uid, "addunit", entryId, {});
+    return void askWiz(ctx, "addunit", entryId);
   }
-  const id = await addEntry(chapterId, { name: String(st.payload.name), price }, uid);
-  await clearState(uid);
-  await changed();
-  await ctx.reply("✓ Позиция добавлена. Заполните остальное кнопками:");
-  await showCard(ctx, id);
+  if (st.action === "addunit") {
+    await setText(st.entryId!, "unit", value.trim() || null, uid);
+    await changed();
+    await setState(uid, "adddesc", st.entryId, {});
+    return void askWiz(ctx, "adddesc", st.entryId!);
+  }
+  if (st.action === "adddesc") {
+    const text = value.trim();
+    await setText(st.entryId!, "note", text || null, uid);
+    await setText(st.entryId!, "noteShort", text ? firstSentence(text) : null, uid);
+    await changed();
+    await setState(uid, "addphoto", st.entryId, {});
+    return void askWiz(ctx, "addphoto", st.entryId!);
+  }
+  if (st.action === "addphoto") {
+    // На фото-шаге ждём картинку, а не текст.
+    return void ctx.reply("Пришлите фото блюда, либо нажмите «⏭ Пропустить».");
+  }
 }
 
 /** Ответ на callback (всплывашка) — best-effort: НИКОГДА не бросает. Просроченный
