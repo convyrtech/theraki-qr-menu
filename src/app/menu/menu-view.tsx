@@ -940,10 +940,17 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                 return (
                   <Fragment key={e.name}>
                   {showGroup ? <div className="mn__group">{e.group}</div> : null}
-                  <button
+                  <div
                     className={"mn__card" + (photo ? " has-photo" : "")}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setDetail(e)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === "Enter" || ev.key === " ") {
+                        ev.preventDefault();
+                        setDetail(e);
+                      }
+                    }}
                   >
                     {photo ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -971,8 +978,13 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                       ) : cardBlurb(e) ? (
                         <p className="mn__card-note">{typo(cardBlurb(e)!)}</p>
                       ) : null}
+                      {orderable(e) ? (
+                        <div className="mn__card-cart" onClick={(ev) => ev.stopPropagation()}>
+                          <AddToCart item={cartItemOf(e)} />
+                        </div>
+                      ) : null}
                     </div>
-                  </button>
+                  </div>
                   </Fragment>
                 );
                 })}

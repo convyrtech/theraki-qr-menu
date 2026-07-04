@@ -1019,3 +1019,9 @@ body:has(.mn) { background: #ffffff; }
 /* добавление в карточке блюда (деталь) и в строке списка */
 .mn__detail-cart { margin-top: 14px; display: flex; justify-content: center; }
 .mn__row-cart { grid-column: 1 / -1; margin-top: 8px; }
+.mn__card-cart { margin-top: 12px; display: flex; }
+.mn__card-cart .mn-cart-add { width: 100%; text-align: center; padding: 10px; }
+.mn__card-cart .mn-cart-step { width: 100%; justify-content: space-between; }
+.mn-cart-toast-more { opacity: .85; }
+/* карточка теперь div role=button — сохраняем указатель и убираем выделение при тапе */
+.mn__card[role="button"] { cursor: pointer; -webkit-tap-highlight-color: transparent; }

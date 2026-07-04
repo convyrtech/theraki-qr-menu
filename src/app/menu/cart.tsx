@@ -134,7 +134,27 @@ export function CartBar() {
   const [err, setErr] = useState("");
 
   const arr = Object.values(lines);
-  if (count === 0 && !done) return null;
+
+  // Повторные заказы: как только гость начал добавлять новое после отправки —
+  // прячем «отправлено» и показываем панель нового заказа.
+  useEffect(() => {
+    if (done && count > 0) setDone(false);
+  }, [done, count]);
+  // Тост «отправлено» гаснет сам через 6с.
+  useEffect(() => {
+    if (!done) return;
+    const t = setTimeout(() => setDone(false), 6000);
+    return () => clearTimeout(t);
+  }, [done]);
+
+  if (done && count === 0)
+    return (
+      <div className="mn-cart-toast" role="status" onClick={() => setDone(false)}>
+        ✓ Заказ отправлен{table ? ` · стол ${table}` : ""}. Официант скоро подойдёт.
+        <span className="mn-cart-toast-more"> Захотите ещё — просто добавьте в заказ.</span>
+      </div>
+    );
+  if (count === 0) return null;
 
   async function submit() {
     setSending(true);
@@ -161,13 +181,6 @@ export function CartBar() {
     }
   }
 
-  if (done) {
-    return (
-      <div className="mn-cart-toast" role="status" onClick={() => setDone(false)}>
-        ✓ Заказ отправлен{table ? ` · стол ${table}` : ""}. Официант скоро подойдёт.
-      </div>
-    );
-  }
 
   return (
     <>
