@@ -15,6 +15,15 @@ import {
   restoreEntry,
 } from "./menu-write-db";
 import { getState, setState, clearState } from "./bot-state-db";
+import {
+  getBoard,
+  setSizePrice,
+  addRecipe,
+  renameRecipe,
+  setRecipeSurcharge,
+  toggleRecipeSpicy,
+  deleteRecipe,
+} from "./raki-write-db";
 
 // --- Доступ -------------------------------------------------------------
 function adminIds(): Set<number> {
@@ -37,6 +46,8 @@ const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 export async function renderChapterList(): Promise<{ text: string; keyboard: InlineKeyboard }> {
   const chapters = await listChapters();
   const kb = new InlineKeyboard();
+  // Раки — отдельная структура (доска в boards), не в таблице chapters. Выводим вручную.
+  kb.text("🦞 Раки (размеры + рецепты)", "raki").row();
   for (const c of chapters) {
     const mark = c.hidden > 0 ? ` · ${c.hidden} ⛔` : "";
     kb.text(`${c.title} · ${c.total}${mark}`, `ch:${c.id}`).row();
@@ -102,6 +113,72 @@ export async function renderEntryCard(
     .text("🗑 Удалить", `del:${e.id}`)
     .row()
     .text("◀️ Назад", `ch:${e.chapterId}`);
+  return { text: lines.join("\n"), keyboard: kb };
+}
+
+/** Экран доски раков: размеры (цены/кг) + способы приготовления. */
+export async function renderRakiBoard(): Promise<{ text: string; keyboard: InlineKeyboard }> {
+  const b = await getBoard();
+  const kb = new InlineKeyboard();
+  const lines = ["🦞 <b>Раки</b>", "", "<b>Размеры</b> (цена за кг) — тап, чтобы изменить:"];
+  for (const s of b.sizes) {
+    lines.push(`  ${s.tier} · ${s.countPerKg} шт/кг · <b>${rub(s.price)}</b>`);
+    kb.text(`${s.tier} — ${rub(s.price)}/кг`, `rsize:${s.tier}`);
+    if (b.sizes.indexOf(s) % 2 === 1) kb.row();
+  }
+  kb.row();
+  lines.push("", "<b>Способы и рецепты</b> — тап, чтобы редактировать:");
+  for (const p of b.preparations) {
+    lines.push(`  ${p.title}: ${p.recipes.length} рец.`);
+    kb.text(`${p.title} (${p.recipes.length})`, `rprep:${p.id}`).row();
+  }
+  kb.text("◀️ К разделам", "menu");
+  return { text: lines.join("\n"), keyboard: kb };
+}
+
+/** Экран рецептов одного способа (Отварные/Жареные). */
+export async function renderRakiPrep(
+  prepId: string,
+): Promise<{ text: string; keyboard: InlineKeyboard } | null> {
+  const b = await getBoard();
+  const p = b.preparations.find((x) => x.id === prepId);
+  if (!p) return null;
+  const kb = new InlineKeyboard();
+  const lines = [`🍳 <b>Раки ${p.title.toLowerCase()}</b>`, "", "Рецепты — тап, чтобы редактировать:"];
+  p.recipes.forEach((r, i) => {
+    const marks = `${r.surcharge ? " " + r.surcharge : ""}${r.spicy ? " 🌶" : ""}`;
+    lines.push(`  ${i + 1}. ${r.name}${marks}`);
+    kb.text(`${i + 1}. ${r.name}`, `rrec:${prepId}:${i}`).row();
+  });
+  kb.text("➕ Добавить рецепт", `raddrec:${prepId}`).row();
+  kb.text("◀️ К ракам", "raki");
+  return { text: lines.join("\n"), keyboard: kb };
+}
+
+/** Экран одного рецепта: действия. */
+export async function renderRakiRecipe(
+  prepId: string,
+  idx: number,
+): Promise<{ text: string; keyboard: InlineKeyboard } | null> {
+  const b = await getBoard();
+  const p = b.preparations.find((x) => x.id === prepId);
+  const r = p?.recipes[idx];
+  if (!p || !r) return null;
+  const lines = [
+    `🍳 <b>${r.name}</b>`,
+    `Способ: раки ${p.title.toLowerCase()}`,
+    `Надбавка: ${r.surcharge ?? "—"}`,
+    `Острый: ${r.spicy ? "🌶 да" : "нет"}`,
+  ];
+  const kb = new InlineKeyboard()
+    .text("✏️ Переименовать", `rrecname:${prepId}:${idx}`)
+    .row()
+    .text("💵 Надбавка", `rrecsur:${prepId}:${idx}`)
+    .text(r.spicy ? "🌶 убрать" : "🌶 острый", `rrecspicy:${prepId}:${idx}`)
+    .row()
+    .text("🗑 Удалить рецепт", `rrecdel:${prepId}:${idx}`)
+    .row()
+    .text("◀️ Назад", `rprep:${prepId}`);
   return { text: lines.join("\n"), keyboard: kb };
 }
 
@@ -272,13 +349,111 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ctx.answerCallbackQuery();
   });
 
+  // --- Раки: доска, размеры, рецепты ------------------------------------
+  bot.callbackQuery("raki", async (ctx) => {
+    const res = await renderRakiBoard();
+    await editTo(ctx, res.text, res.keyboard);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^rsize:(.+)$/, async (ctx) => {
+    const tier = ctx.match![1];
+    await setState(ctx.from!.id, "rprice", null, { tier });
+    const kb = new InlineKeyboard().text("Отмена", "raki");
+    await editTo(ctx, `💰 Отправьте новую <b>цену за кг</b> для размера <b>${tier}</b> (число).\n\nИли /cancel.`, kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^rprep:(.+)$/, async (ctx) => {
+    const res = await renderRakiPrep(ctx.match![1]);
+    if (!res) return void ctx.answerCallbackQuery({ text: "Способ не найден." });
+    await editTo(ctx, res.text, res.keyboard);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^rrec:(.+):(\d+)$/, async (ctx) => {
+    const res = await renderRakiRecipe(ctx.match![1], Number(ctx.match![2]));
+    if (!res) return void ctx.answerCallbackQuery({ text: "Рецепт не найден." });
+    await editTo(ctx, res.text, res.keyboard);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^rrecspicy:(.+):(\d+)$/, async (ctx) => {
+    const prepId = ctx.match![1];
+    const idx = Number(ctx.match![2]);
+    try {
+      await toggleRecipeSpicy(prepId, idx, ctx.from!.id);
+      await changed();
+      const res = await renderRakiRecipe(prepId, idx);
+      if (res) await editTo(ctx, res.text, res.keyboard);
+      await ctx.answerCallbackQuery({ text: "Обновлено." });
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
+  bot.callbackQuery(/^rrecdel:(.+):(\d+)$/, async (ctx) => {
+    const prepId = ctx.match![1];
+    const idx = Number(ctx.match![2]);
+    try {
+      await deleteRecipe(prepId, idx, ctx.from!.id);
+      await changed();
+      const res = await renderRakiPrep(prepId);
+      if (res) await editTo(ctx, res.text, res.keyboard);
+      await ctx.answerCallbackQuery({ text: "Рецепт удалён." });
+    } catch (e) {
+      await ctx.answerCallbackQuery({ text: errText(e) });
+    }
+  });
+
+  bot.callbackQuery(/^rrecname:(.+):(\d+)$/, async (ctx) => {
+    const prepId = ctx.match![1];
+    const idx = Number(ctx.match![2]);
+    await setState(ctx.from!.id, "rrecname", null, { prepId, idx });
+    const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
+    await editTo(ctx, "✏️ Отправьте новое <b>название рецепта</b>.\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^rrecsur:(.+):(\d+)$/, async (ctx) => {
+    const prepId = ctx.match![1];
+    const idx = Number(ctx.match![2]);
+    await setState(ctx.from!.id, "rrecsur", null, { prepId, idx });
+    const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
+    await editTo(ctx, "💵 Отправьте <b>надбавку</b> рецепта (например «+1 000 ₽»). «-» — убрать.\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^raddrec:(.+)$/, async (ctx) => {
+    const prepId = ctx.match![1];
+    await setState(ctx.from!.id, "raddrec", null, { prepId });
+    const kb = new InlineKeyboard().text("Отмена", `rprep:${prepId}`);
+    await editTo(ctx, "➕ Отправьте <b>название нового рецепта</b>.\n\nИли /cancel.", kb);
+    await ctx.answerCallbackQuery();
+  });
+
   // Единственный обработчик текста: если у пользователя открыт диалог — применяем.
   bot.on("message:text", async (ctx) => {
     const st = await getState(ctx.from!.id);
-    if (!st || st.entryId == null) {
+    if (!st) {
       return void ctx.reply("Не понял. /menu — открыть разделы меню.");
     }
     const value = ctx.message.text.trim();
+
+    // Раки-диалоги (данные в payload, entryId=null) — обрабатываем отдельно.
+    if (["rprice", "rrecname", "rrecsur", "raddrec"].includes(st.action)) {
+      try {
+        await applyRakiInput(ctx, st, value, changed);
+      } catch (e) {
+        await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+      }
+      return;
+    }
+
+    if (st.entryId == null) {
+      await clearState(ctx.from!.id);
+      return void ctx.reply("Диалог сброшен. /menu.");
+    }
     try {
       if (st.action === "price") {
         const price = Number(value.replace(/\s/g, "").replace(",", "."));
@@ -329,6 +504,50 @@ async function showCard(ctx: Context, entryId: number, prefix?: string) {
 
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : "Ошибка. Попробуйте ещё раз.";
+}
+
+/** Применить текстовый ввод раки-диалога (цена размера / рецепты). */
+async function applyRakiInput(
+  ctx: Context,
+  st: { action: string; payload: Record<string, unknown> },
+  value: string,
+  changed: () => Promise<void>,
+) {
+  const uid = ctx.from!.id;
+  const p = st.payload as { tier?: string; prepId?: string; idx?: number };
+  const reply = (r: { text: string; keyboard: InlineKeyboard } | null, ok: string) => {
+    void ctx.reply(ok);
+    if (r) return ctx.reply(r.text, { parse_mode: "HTML", reply_markup: r.keyboard });
+  };
+
+  if (st.action === "rprice") {
+    const price = Number(value.replace(/\s/g, "").replace(",", "."));
+    if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
+      return void ctx.reply("Нужно целое число, например 4900. Ещё раз или /cancel.");
+    }
+    await setSizePrice(p.tier!, price, uid);
+    await clearState(uid);
+    await changed();
+    return void reply(await renderRakiBoard(), "✓ Цена размера обновлена.");
+  }
+  if (st.action === "raddrec") {
+    await addRecipe(p.prepId!, value, uid);
+    await clearState(uid);
+    await changed();
+    return void reply(await renderRakiPrep(p.prepId!), "✓ Рецепт добавлен.");
+  }
+  if (st.action === "rrecname") {
+    await renameRecipe(p.prepId!, p.idx!, value, uid);
+    await clearState(uid);
+    await changed();
+    return void reply(await renderRakiRecipe(p.prepId!, p.idx!), "✓ Переименовано.");
+  }
+  if (st.action === "rrecsur") {
+    await setRecipeSurcharge(p.prepId!, p.idx!, value === "-" ? null : value, uid);
+    await clearState(uid);
+    await changed();
+    return void reply(await renderRakiRecipe(p.prepId!, p.idx!), "✓ Надбавка обновлена.");
+  }
 }
 
 /** Правит текущее сообщение (навигация «на месте»), с фолбэком на новое. */

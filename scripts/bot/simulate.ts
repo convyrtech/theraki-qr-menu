@@ -5,6 +5,7 @@
 import type { UserFromGetMe } from "grammy/types";
 import { createBot } from "../../src/bot/bot";
 import { listEntries, getEntry } from "../../src/bot/menu-admin-db";
+import { getBoard } from "../../src/bot/raki-write-db";
 
 const BOT_INFO: UserFromGetMe = {
   id: 8323960341,
@@ -165,6 +166,42 @@ async function main() {
   await check("после delete: getEntry=null (скрыт из витрины)", (await getEntry(id)) === null);
   await bot.handleUpdate(cb(ADMIN, `restore:${id}`));
   await check("после restore: снова доступна", (await getEntry(id)) !== null);
+
+  // === РАКИ (self-cleaning) ===
+  console.log("\n=== РАКИ (доска boards) ===");
+  const board0 = await getBoard();
+  const mPrice0 = board0.sizes.find((s) => s.tier === "M")!.price;
+  const boiledLen0 = board0.preparations.find((p) => p.id === "boiled")!.recipes.length;
+
+  // Открыть доску
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "raki"));
+  await check("доска раков открывается (есть кнопки размеров/способов)", (calls[0]?.buttons?.length ?? 0) >= 5);
+
+  // Цена размера M: 9999 → откат
+  await bot.handleUpdate(cb(ADMIN, "rsize:M"));
+  await bot.handleUpdate(msg(ADMIN, "9999"));
+  await check("цена M = 9999", (await getBoard()).sizes.find((s) => s.tier === "M")!.price === 9999);
+  await bot.handleUpdate(cb(ADMIN, "rsize:M"));
+  await bot.handleUpdate(msg(ADMIN, String(mPrice0)));
+  await check("цена M возвращена", (await getBoard()).sizes.find((s) => s.tier === "M")!.price === mPrice0);
+
+  // Добавить рецепт в Отварные → удалить
+  await bot.handleUpdate(cb(ADMIN, "raddrec:boiled"));
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-РЕЦЕПТ"));
+  const afterAdd = await getBoard();
+  const boiled = afterAdd.preparations.find((p) => p.id === "boiled")!;
+  await check("рецепт добавлен (+1)", boiled.recipes.length === boiledLen0 + 1);
+  await check("новый рецепт последний = ТЕСТ-РЕЦЕПТ", boiled.recipes[boiled.recipes.length - 1].name === "ТЕСТ-РЕЦЕПТ");
+  await bot.handleUpdate(cb(ADMIN, `rrecdel:boiled:${boiled.recipes.length - 1}`));
+  await check("рецепт удалён (обратно)", (await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes.length === boiledLen0);
+
+  // Метка острый на рецепте 0 → откат
+  const sp0 = (await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false;
+  await bot.handleUpdate(cb(ADMIN, "rrecspicy:boiled:0"));
+  await check("острый инвертирован", ((await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false) === !sp0);
+  await bot.handleUpdate(cb(ADMIN, "rrecspicy:boiled:0"));
+  await check("острый возвращён", ((await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false) === sp0);
 
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }
