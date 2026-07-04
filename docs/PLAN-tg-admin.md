@@ -14,6 +14,20 @@
 добавить позицию, удалить (мягко, с восстановлением). Сайт меню
 подхватывает правки за секунды, оставаясь мгновенно-быстрым для гостей.
 
+## 🚨 ЖЁСТКИЙ ИНВАРИАНТ (владелец, 2026-07-04): GH PAGES ПРОД НЕПРИКОСНОВЕНЕН
+
+`menu.theraki.ru` живёт на GitHub Pages (статик-экспорт, ветка `gh-pages`,
+собирается из `feat/site-aligned-menu`). Это ЖИВОЙ ПРОД — гости и QR смотрят сюда.
+**Ничего в этой цепочке не трогать.** Правила:
+- Вся работа этапа — ТОЛЬКО в ветке `feat/tg-admin`. НЕ мержить в `feat/site-aligned-menu`,
+  НЕ пушить в `gh-pages`, НЕ запускать deploy-скрипт GH Pages.
+- Новая версия (БД+бот+ISR) деплоится на **Vercel по отдельному адресу** — параллельно,
+  гостям не видна. Убирать `output:"export"` можно СМЕЛО: это ветка `feat/tg-admin`,
+  GH Pages собирается из другой ветки и об этом не знает.
+- Переключение домена `menu.theraki.ru` GH Pages → Vercel (смена CNAME у nic.ru) —
+  ТОЛЬКО финальным шагом Фазы 6 и ТОЛЬКО с явного согласия владельца. QR-адрес при этом
+  не меняется. До этого момента прод физически нечем сломать (разные хостинг/ветка/DNS).
+
 ## Архитектурные решения (зафиксировано)
 
 - **База:** Neon Postgres (Vercel Marketplace). Схема: `chapters` + `entries`
@@ -55,18 +69,24 @@
 
 ## Фаза 1 — Слой данных (≈1,5 дня)
 
-- [ ] Миграция-скрипт схемы (`scripts/db-migrate.mjs` или drizzle — решить по месту)
-- [ ] Сид-скрипт: `src/data/menu.ts` → БД без потерь (variants, group, unit, abv,
-      spicy, signature, origin, footnotes, lede, сортировка)
-- [ ] Модуль чтения `src/lib/menu-db.ts`: `getMenu()` возвращает ровно ту же
-      структуру `Chapter[]`, что сейчас экспортирует `menu.ts` (скрытые/удалённые
-      отфильтрованы)
-- [ ] **Скрипт паритета** `scripts/verify-parity.mjs`: deep-diff «menu.ts vs getMenu()»
-      → пустой diff
-- [ ] 🔒 **Гейт 1:** паритет-скрипт = 0 расхождений; вывод приложить сюда:
-      `результат: …`
+- [x] Миграция-скрипт схемы `scripts/db/migrate.ts` (+ `schema.sql`, `client.ts`);
+      выбор: чистый SQL через neon-driver, без drizzle. `npm run db:migrate`. 5 таблиц.
+- [x] Сид-скрипт `scripts/db/seed.ts`: `menu.ts` → БД без потерь (variants/group/unit/
+      abv/spicy/signature/origin/footnotes/lede/сортировка; доска раков = jsonb в `boards`).
+      `npm run db:seed`. Идемпотентный (TRUNCATE…RESTART IDENTITY).
+- [x] Модуль чтения `src/lib/menu-db.ts`: `getMenu()`/`getChapters()`/`getRakiBoard()`
+      возвращают РОВНО форму `menu.ts` (пустые опц.поля опущены); скрытые/удалённые
+      отфильтрованы (`WHERE NOT is_hidden AND NOT is_deleted`).
+- [x] **Скрипт паритета** `scripts/db/verify-parity.ts`: `deepStrictEqual` getMenu()
+      vs menu.ts, поглавно + доска + порядок. `npm run db:parity`.
+- [x] 🔒 **Гейт 1:** паритет = 0 расхождений (2026-07-04). Вывод:
+      `✓ ПАРИТЕТ: 0 расхождений. 15 глав, 66/66 позиций, доска раков совпала.` exit 0.
+      (+ tsconfig: `scripts` выведены из type-check Next, свой `scripts/tsconfig.json`
+      с allowImportingTsExtensions; build:clean зелёный, output:export пока НЕ тронут.)
 
 ## Фаза 2 — Сайт читает из БД, ISR (≈1 день)
+
+> ⚠️ Всё ниже — В ВЕТКЕ `feat/tg-admin`, деплой на Vercel-адрес. GH Pages не трогаем (см. инвариант).
 
 - [ ] `next.config.ts`: убрать `output: "export"` (+ ревизия `trailingSlash`/редиректов)
 - [ ] `menu/page.tsx`: данные из `getMenu()`, `revalidateTag('menu')`-совместимое

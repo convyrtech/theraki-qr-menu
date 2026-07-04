@@ -17,9 +17,13 @@
     "start": "next start",
     "lint": "eslint .",
     "images": "node scripts/optimize-images.mjs",
+    "db:migrate": "node --env-file=.env.local scripts/db/migrate.ts",
+    "db:seed": "node --env-file=.env.local scripts/db/seed.ts",
+    "db:parity": "node --env-file=.env.local scripts/db/verify-parity.ts",
     "verify": "npm run lint && npm run build:clean"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "next": "^15.3.3",
     "qr-code-styling": "^1.9.2",
     "react": "^19.1.0",

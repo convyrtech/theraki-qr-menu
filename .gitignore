@@ -33,3 +33,5 @@ recovered-salad-photos/
 /orig.jpg
 /menu-pustoy5.html
 /Пусто*
+
+.env*.local

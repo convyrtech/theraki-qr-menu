@@ -1,0 +1,12 @@
+{
+  "//": "CLI-скрипты исполняются Node 24 напрямую (type-stripping), поэтому импорты идут с явным .ts. Next-сборка их не проверяет (root tsconfig exclude: scripts); этот конфиг даёт типы в редакторе.",
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
+  },
+  "include": ["**/*.ts"],
+  "exclude": []
+}
