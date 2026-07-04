@@ -352,6 +352,12 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
+  bot.command("chatid", async (ctx) => {
+    // Для настройки чата заказов: добавить бота в группу и написать /chatid —
+    // бот вернёт id (у групп он отрицательный). Его прописать в TG_ORDERS_CHAT_ID.
+    await ctx.reply(`id этого чата: <code>${ctx.chat.id}</code>`, { parse_mode: "HTML" });
+  });
+
   bot.command("export", async (ctx) => {
     try {
       const data = await exportAll();

@@ -61,6 +61,16 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details      jsonb NOT NULL DEFAULT '{}'    -- {field, old, new, name}
 );
 
+-- Журнал заказов через QR-меню (Этап B): история + rate-limit от спама.
+CREATE TABLE IF NOT EXISTS orders_log (
+  id        serial PRIMARY KEY,
+  at        timestamptz NOT NULL DEFAULT now(),
+  table_no  text,
+  total     int,
+  items     jsonb NOT NULL DEFAULT '[]',
+  comment   text
+);
+
 -- Фото позиций, загруженные через бота (отправкой картинки). Храним WebP как
 -- base64-текст (проще, чем bytea через HTTP-драйвер); отдаём роутом /api/photo/[id].
 -- ON DELETE CASCADE — при удалении позиции фото уходит вместе с ней.
