@@ -23,10 +23,16 @@ function getHandle() {
       const secretToken = process.env.TG_WEBHOOK_SECRET;
       if (!secretToken) throw new Error("TG_WEBHOOK_SECRET не задан — вебхук отклонён (fail-closed).");
       const bot = createBot(token, { onMenuChanged: () => revalidateMenu() });
-      await bot.init();
+      await bot.init(); // getMe — единственный сетевой вызов инициализации
       // Адаптер "std/http" даёт обработчик (Request) => Promise<Response>.
       return webhookCallback(bot, "std/http", { secretToken }) as WebRequestHandler;
-    })();
+    })().catch((e) => {
+      // НЕ кэшируем отклонённый промис: иначе один транзиентный сбой bot.init()
+      // навсегда 500-ил бы тёплую лямбду (Telegram-ретраи). Сбрасываем — следующий
+      // запрос переинициализирует.
+      handlePromise = null;
+      throw e;
+    });
   }
   return handlePromise;
 }

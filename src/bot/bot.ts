@@ -542,18 +542,22 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   bot.callbackQuery(/^rrecname:(.+):(\d+)$/, async (ctx) => {
     const prepId = ctx.match![1];
     const idx = Number(ctx.match![2]);
+    const rec = (await getBoard()).preparations.find((p) => p.id === prepId)?.recipes[idx];
+    if (!rec) return void ack(ctx, { text: "Рецепт не найден (обновите экран)." });
     await setState(ctx.from!.id, "rrecname", null, { prepId, idx });
     const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
-    await editTo(ctx, "✏️ Отправьте новое <b>название рецепта</b>.\n\nИли /cancel.", kb);
+    await editTo(ctx, `✏️ Новое <b>название</b> для рецепта «${esc(rec.name)}».\n\nИли /cancel.`, kb);
     await ack(ctx);
   });
 
   bot.callbackQuery(/^rrecsur:(.+):(\d+)$/, async (ctx) => {
     const prepId = ctx.match![1];
     const idx = Number(ctx.match![2]);
+    const rec = (await getBoard()).preparations.find((p) => p.id === prepId)?.recipes[idx];
+    if (!rec) return void ack(ctx, { text: "Рецепт не найден (обновите экран)." });
     await setState(ctx.from!.id, "rrecsur", null, { prepId, idx });
     const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
-    await editTo(ctx, "💵 Отправьте <b>надбавку</b> рецепта (например «+1 000 ₽»). «-» — убрать.\n\nИли /cancel.", kb);
+    await editTo(ctx, `💵 <b>Надбавка</b> для рецепта «${esc(rec.name)}» (например «+1 000 ₽»). «-» — убрать.\n\nИли /cancel.`, kb);
     await ack(ctx);
   });
 
@@ -598,9 +602,15 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   bot.callbackQuery(/^varedit:(\d+):(\d+)$/, async (ctx) => {
     const id = Number(ctx.match![1]);
     const idx = Number(ctx.match![2]);
+    const v = (await getEntry(id))?.variants[idx];
+    if (!v) return void ack(ctx, { text: "Формат не найден (обновите экран)." });
     await setState(ctx.from!.id, "varedit", id, { idx });
     const kb = new InlineKeyboard().text("Отмена", `vars:${id}`);
-    await editTo(ctx, "✏️ Отправьте новый формат как <b>метка = цена</b> (например <code>0,5 кг = 1450</code>).\n\nИли /cancel.", kb);
+    await editTo(
+      ctx,
+      `✏️ Меняем формат «${esc(v.label)} — ${rub(v.price)}». Отправьте новый как <b>метка = цена</b> (например <code>0,5 кг = 1450</code>).\n\nИли /cancel.`,
+      kb,
+    );
     await ack(ctx);
   });
 
@@ -760,17 +770,19 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     }
     try {
       if (st.action === "price") {
-        const price = Number(value.replace(/\s/g, "").replace(",", "."));
-        if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
+        const price = parsePrice(value);
+        if (price == null) {
           return void ctx.reply("Нужно целое число, например 2500. Ещё раз или /cancel.");
         }
         await setPrice(st.entryId, price, ctx.from!.id);
       } else if (st.action === "photo") {
-        // Текстом: «-» убирает фото, либо внешняя https-ссылка. И то, и другое
-        // означает «не загруженный файл» → чистим сохранённые байты, если были.
+        // Текстом: «-» убирает фото, либо внешняя https-ссылка.
+        // ВАЖНО: сначала setPhoto (он ВАЛИДИРУЕТ и бросает на кривом вводе,
+        // например http:// вместо https://), и ТОЛЬКО при успехе чистим старые
+        // байты. Иначе кривая ссылка стёрла бы фото и оставила 404 на сайте.
         const url = value === "-" ? null : value;
-        await deletePhotoBytes(st.entryId);
         await setPhoto(st.entryId, url, ctx.from!.id);
+        await deletePhotoBytes(st.entryId);
         // Превью: показываем присланное фото, чтобы владелец видел, что ссылка
         // рабочая (не вставлял вслепую). Если Telegram не загрузил — предупреждаем.
         if (url) {
@@ -842,8 +854,8 @@ async function applyRakiInput(
   };
 
   if (st.action === "rprice") {
-    const price = Number(value.replace(/\s/g, "").replace(",", "."));
-    if (!Number.isFinite(price) || price < 0 || !Number.isInteger(price)) {
+    const price = parsePrice(value);
+    if (price == null) {
       return void ctx.reply("Нужно целое число, например 4900. Ещё раз или /cancel.");
     }
     await setSizePrice(p.tier!, price, uid);
@@ -909,10 +921,12 @@ async function applyVariantInput(ctx: Context, st: Dlg, value: string, changed: 
   if (res) await ctx.reply(res.text, { parse_mode: "HTML", reply_markup: res.keyboard });
 }
 
-// Парсинг цены: целое ≥ 0 (допускаем пробелы/запятую). null — невалидно.
+// Парсинг цены: только цифры (пробелы игнорируем), 0…9 999 999. Отвергает
+// «1e9», «0x10», дробные, отрицательные, мусор. null — невалидно.
 function parsePrice(value: string): number | null {
-  const n = Number(value.replace(/\s/g, "").replace(",", "."));
-  return Number.isFinite(n) && n >= 0 && Number.isInteger(n) ? n : null;
+  const cleaned = value.replace(/\s/g, "");
+  if (!/^\d{1,7}$/.test(cleaned)) return null;
+  return Number(cleaned);
 }
 
 // Мастер добавления позиции. Обязательны название+цена; грамовка/описание/фото —

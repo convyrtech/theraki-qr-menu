@@ -8,6 +8,8 @@ import { neon } from "@neondatabase/serverless";
 import { listEntries, getEntry } from "../../src/bot/menu-admin-db";
 import { getBoard } from "../../src/bot/raki-write-db";
 import { getChapters } from "../../src/lib/menu-db";
+import { savePhotoBytes, getPhotoBytes } from "../../src/bot/photo-db";
+import { setPhoto } from "../../src/bot/menu-write-db";
 
 const BOT_INFO: UserFromGetMe = {
   id: 8323960341,
@@ -399,6 +401,26 @@ async function main() {
   await check("цена для удалённой позиции → ошибка, не краш", calls.some((c) => (c.text ?? "").toLowerCase().includes("не найдена")));
   await bot.handleUpdate(msg(ADMIN, "/cancel"));
   await neon(process.env.DATABASE_URL!).query("DELETE FROM entries WHERE name='ВРЕМЕННАЯ'");
+
+  // 7) Bug#1: кривая ссылка в диалоге фото НЕ должна стирать загруженное фото
+  await savePhotoBytes(id, Buffer.from("test-webp-bytes"));
+  await setPhoto(id, `/api/photo/${id}/?v=1`, ADMIN); // будто загружено фото
+  await bot.handleUpdate(cb(ADMIN, `photo:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "http://плохо.jpg")); // невалидно (http)
+  const stillBytes = (await getPhotoBytes(id)) !== null;
+  const photoUnchanged = (await getEntry(id))!.photo === `/api/photo/${id}/?v=1`;
+  await check("кривая ссылка НЕ стёрла загруженное фото (bug#1)", stillBytes && photoUnchanged);
+  await bot.handleUpdate(msg(ADMIN, "/cancel"));
+  // очистка фото начисто («-» валиден → setPhoto(null)+deletePhotoBytes)
+  await bot.handleUpdate(cb(ADMIN, `photo:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "-"));
+  await check("фото убрано начисто", (await getPhotoBytes(id)) === null && (await getEntry(id))!.photo === (before.photo ?? null));
+
+  // 8) Цена «1e9» / «0x10» — отклонить (ужесточённый parsePrice)
+  await bot.handleUpdate(cb(ADMIN, `price:${id}`));
+  await bot.handleUpdate(msg(ADMIN, "1e9"));
+  await check("цена «1e9» отклонена", (await getEntry(id))!.price === before.price);
+  await bot.handleUpdate(msg(ADMIN, "/cancel"));
 
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }
