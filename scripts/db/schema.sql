@@ -73,6 +73,18 @@ CREATE TABLE IF NOT EXISTS orders_log (
 );
 ALTER TABLE orders_log ADD COLUMN IF NOT EXISTS ip text;
 CREATE INDEX IF NOT EXISTS orders_log_at ON orders_log (at);
+CREATE INDEX IF NOT EXISTS orders_log_table_at ON orders_log (table_no, at);
+
+-- Закрытия столов (границы сессий счёта). При «Закрыть стол» пишем строку;
+-- «счёт стола» = заказы этого стола ПОСЛЕ последнего закрытия → новые гости за
+-- тем же столом не смешиваются со старым счётом.
+CREATE TABLE IF NOT EXISTS table_closes (
+  id         serial PRIMARY KEY,
+  table_no   text NOT NULL,
+  at         timestamptz NOT NULL DEFAULT now(),
+  by_tg_id   bigint
+);
+CREATE INDEX IF NOT EXISTS table_closes_table_at ON table_closes (table_no, at);
 
 -- Фото позиций, загруженные через бота (отправкой картинки). Храним WebP как
 -- base64-текст (проще, чем bytea через HTTP-драйвер); отдаём роутом /api/photo/[id].

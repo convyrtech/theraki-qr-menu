@@ -25,6 +25,8 @@ import {
   parseVariant,
 } from "./menu-write-db";
 import { getState, setState, clearState, claimUpdate } from "./bot-state-db";
+import { tableBill, openTables, closeTable, type TableBill, type OpenTable } from "./orders-admin-db";
+import { ordersChatId } from "@/lib/orders";
 import {
   getBoard,
   setSizePrice,
@@ -94,6 +96,46 @@ const esc = (s: string | null | undefined): string =>
 // может перевалить лимит сообщения Telegram (4096) → карточка не откроется.
 // В БД и на сайте текст остаётся полным.
 const trunc = (s: string, n = 500): string => (s.length > n ? s.slice(0, n) + "…" : s);
+
+// --- Управление заказами (персонал) ------------------------------------
+// Команды/кнопки заказов доступны в ЧАТЕ ЗАКАЗОВ (группа персонала) или админам.
+// Официант (не админ) в группе может смотреть/закрывать счёт, но НЕ трогать меню.
+function canManageOrders(ctx: Context): boolean {
+  return isAdmin(ctx.from?.id) || String(ctx.chat?.id ?? "") === ordersChatId();
+}
+const hhmm = (at: string): string =>
+  new Date(at).toLocaleTimeString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" });
+
+function formatBill(bill: TableBill): string {
+  if (!bill.rounds.length) {
+    return `🧾 <b>Стол ${esc(bill.table)}</b>\nПока нет заказов на этом столе (или он только что закрыт).`;
+  }
+  const lines = [`🧾 <b>СЧЁТ · стол ${esc(bill.table)}</b>`, "──────────"];
+  bill.rounds.forEach((r, i) => {
+    lines.push(`<b>Круг ${i + 1}</b> · ${hhmm(r.at)}`);
+    for (const it of r.items) lines.push(`  • ${esc(it.label)} · ${esc(it.qtyText)} — ${rub(it.sum)}`);
+  });
+  lines.push("──────────");
+  const wordPoz = bill.itemCount === 1 ? "позиция" : "позиций";
+  lines.push(`ИТОГО: <b>${rub(bill.total)}</b>  ·  ${bill.itemCount} ${wordPoz}, ${bill.rounds.length} кр.`);
+  return lines.join("\n");
+}
+
+function formatOpenTables(list: OpenTable[]): string {
+  if (!list.length) return "Открытых столов нет — все счета закрыты.";
+  const lines = ["🍽 <b>ОТКРЫТЫЕ СТОЛЫ</b>", "──────────"];
+  let grand = 0;
+  for (const t of list) {
+    grand += t.total;
+    lines.push(`Стол <b>${esc(t.table)}</b> · ${rub(t.total)} · ${t.rounds} кр. · ${hhmm(t.lastAt)}`);
+  }
+  lines.push("──────────");
+  lines.push(`Всего открыто: <b>${rub(grand)}</b> на ${list.length} ст.`);
+  return lines.join("\n");
+}
+
+const billKb = (table: string): InlineKeyboard =>
+  new InlineKeyboard().text(`✅ Закрыть стол ${table}`, `close:${table}`);
 
 /** Экран /menu: список глав с числом позиций и скрытых. */
 export async function renderChapterList(): Promise<{ text: string; keyboard: InlineKeyboard }> {
@@ -304,6 +346,62 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       console.error("[bot] dedup не сработал, обрабатываем как есть:", e);
     }
     await next();
+  });
+
+  // --- Заказы (персонал): ДО whitelist, т.к. официант в группе не админ. ---
+  // Гейт: чат заказов ИЛИ админ. Меню при этом остаётся закрытым (whitelist ниже).
+  // /столы и /стол — через hears (Telegram не всегда тегает кириллицу как команду).
+  bot.hears(/^\/столы(?:@\w+)?\b/, async (ctx) => {
+    if (!canManageOrders(ctx)) return;
+    try {
+      await ctx.reply(formatOpenTables(await openTables()), { parse_mode: "HTML" });
+    } catch (e) {
+      await ctx.reply("Не удалось получить столы: " + errText(e));
+    }
+  });
+  bot.hears(/^\/стол(?:@\w+)?\s+(.+)$/, async (ctx) => {
+    if (!canManageOrders(ctx)) return;
+    const table = ctx.match[1].trim().slice(0, 20);
+    try {
+      await ctx.reply(formatBill(await tableBill(table)), { parse_mode: "HTML", reply_markup: billKb(table) });
+    } catch (e) {
+      await ctx.reply("Не удалось получить счёт: " + errText(e));
+    }
+  });
+  bot.callbackQuery(/^bill:(.+)$/, async (ctx) => {
+    if (!canManageOrders(ctx)) return ack(ctx, { text: "Недоступно." });
+    const table = ctx.match[1];
+    try {
+      await ctx.reply(formatBill(await tableBill(table)), { parse_mode: "HTML", reply_markup: billKb(table) });
+      await ack(ctx);
+    } catch (e) {
+      await ack(ctx, { text: "Ошибка: " + errText(e) });
+    }
+  });
+  bot.callbackQuery(/^close:(.+)$/, async (ctx) => {
+    if (!canManageOrders(ctx)) return ack(ctx, { text: "Недоступно." });
+    const table = ctx.match[1];
+    const kb = new InlineKeyboard().text("Да, закрыть", `closeyes:${table}`).text("Отмена", "closeno");
+    await ctx.reply(`Закрыть стол <b>${esc(table)}</b>? Его счёт обнулится — следующий заказ начнёт новый.`, {
+      parse_mode: "HTML",
+      reply_markup: kb,
+    });
+    await ack(ctx);
+  });
+  bot.callbackQuery(/^closeyes:(.+)$/, async (ctx) => {
+    if (!canManageOrders(ctx)) return ack(ctx, { text: "Недоступно." });
+    const table = ctx.match[1];
+    try {
+      await closeTable(table, ctx.from?.id);
+      await editTo(ctx, `✅ Стол <b>${esc(table)}</b> закрыт. Счёт обнулён.`);
+      await ack(ctx, { text: "Закрыто" });
+    } catch (e) {
+      await ack(ctx, { text: "Ошибка: " + errText(e) });
+    }
+  });
+  bot.callbackQuery("closeno", async (ctx) => {
+    await editTo(ctx, "Отменено — стол не закрыт.");
+    await ack(ctx);
   });
 
   // Whitelist: всё, кроме админов, вежливо отбиваем.
@@ -1008,7 +1106,7 @@ async function ack(ctx: Context, opts?: { text?: string }) {
 }
 
 /** Правит текущее сообщение (навигация «на месте»), с фолбэком на новое. */
-async function editTo(ctx: Context, text: string, keyboard: InlineKeyboard) {
+async function editTo(ctx: Context, text: string, keyboard?: InlineKeyboard) {
   try {
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
   } catch {

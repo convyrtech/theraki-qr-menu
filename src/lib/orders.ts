@@ -54,10 +54,21 @@ export async function logAndSendOrder(order: Order, ip: string): Promise<void> {
 
   // 1) СНАЧАЛА отправка персоналу. Если она падает — заказ НЕ дошёл, бросаем
   //    (route вернёт ошибку, гость повторит — это правильно).
+  // Кнопки для персонала: весь счёт стола + закрыть стол (только если стол известен).
+  const reply_markup = order.table
+    ? {
+        inline_keyboard: [
+          [
+            { text: `🧾 Счёт стола ${order.table}`, callback_data: `bill:${order.table}` },
+            { text: `✅ Закрыть`, callback_data: `close:${order.table}` },
+          ],
+        ],
+      }
+    : undefined;
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: orderText(order), parse_mode: "HTML" }),
+    body: JSON.stringify({ chat_id: chatId, text: orderText(order), parse_mode: "HTML", reply_markup }),
   });
   if (!res.ok) {
     throw new Error(`Telegram sendMessage ${res.status}: ${(await res.text()).slice(0, 200)}`);
