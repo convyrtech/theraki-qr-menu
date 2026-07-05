@@ -9,19 +9,26 @@ import { logAndSendOrder, rateLimitReason, type OrderItem } from "@/lib/orders";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Заказ обязан прийти со страницы меню (браузер шлёт Origin на fetch-POST даже
-// same-origin). Пускаем свой хост, домены theraki.ru, превью *.vercel.app, localhost.
+// Отбиваем ЯВНО чужой источник (форма-форжинг с другого сайта), НЕ блокируя
+// легитимных гостей: same-origin fetch-POST порой НЕ шлёт Origin, а Referrer-Policy
+// срезает Referer — поэтому «нет заголовка» ≠ «злоумышленник» (иначе блокировали бы
+// реальные заказы, проверено в браузере). Отказ только при доказанном cross-origin.
 function originAllowed(req: Request): boolean {
   const host = req.headers.get("host") || "";
   const src = req.headers.get("origin") || req.headers.get("referer") || "";
-  if (!src) return false; // ни Origin, ни Referer → не браузерный fetch (curl/скрипт)
-  let h: string;
-  try {
-    h = new URL(src).host;
-  } catch {
-    return false;
+  const hostOk = (h: string) =>
+    h === host || /(^|\.)theraki\.ru$/.test(h) || h.endsWith(".vercel.app") || h.startsWith("localhost");
+  if (src) {
+    try {
+      if (!hostOk(new URL(src).host)) return false; // Origin/Referer есть и ЧУЖОЙ → отказ
+    } catch {
+      return false;
+    }
   }
-  return h === host || /(^|\.)theraki\.ru$/.test(h) || h.endsWith(".vercel.app") || h.startsWith("localhost");
+  // Sec-Fetch-Site (браузер ставит сам, из JS не подделать): явный cross-site → отказ.
+  const sfs = req.headers.get("sec-fetch-site");
+  if (sfs && sfs === "cross-site") return false;
+  return true; // остальное (same-origin, прямой заход, отсутствие заголовков) — пускаем; далее rate-limit
 }
 
 // Стол из QR (?t=): цифры/буквы/пробел/дефис, ≤16. Мусор/эмодзи (перелив
