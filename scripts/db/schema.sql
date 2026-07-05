@@ -86,6 +86,15 @@ CREATE TABLE IF NOT EXISTS table_closes (
 );
 CREATE INDEX IF NOT EXISTS table_closes_table_at ON table_closes (table_no, at);
 
+-- Атомарный счётчик частоты заказов (аудит H1): каждая попытка пишет hit, окно
+-- считается в том же запросе → флуд не проскакивает гонкой. Чистится по времени.
+CREATE TABLE IF NOT EXISTS rate_hits (
+  id        serial PRIMARY KEY,
+  table_no  text,
+  at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS rate_hits_at ON rate_hits (at);
+
 -- Фото позиций, загруженные через бота (отправкой картинки). Храним WebP как
 -- base64-текст (проще, чем bytea через HTTP-драйвер); отдаём роутом /api/photo/[id].
 -- ON DELETE CASCADE — при удалении позиции фото уходит вместе с ней.

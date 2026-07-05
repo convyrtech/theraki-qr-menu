@@ -1,11 +1,37 @@
-// Публичный приём заказа из корзины QR-меню. Валидирует, пересчитывает сумму
-// на сервере (клиенту не доверяем), шлёт в чат персонала, пишет в orders_log.
+// Публичный приём заказа из корзины QR-меню. ЧЕСТНО: сервер валидирует формат,
+// клампит суммы и АГРЕГИРУЕТ клиентские суммы позиций — он НЕ сверяет их с
+// авторитетным меню (источник правды по деньгам — персонал/POS при расчёте за столом,
+// оплаты на сайте нет). Защита от подделки/абьюза (аудит H1/H2): проверка Origin
+// (запрос должен идти со страницы меню), строгая валидация стола, реальные потолки
+// сумм и атомарный rate-limit ДО отправки. Криптоподпись стола — Этап 2, если появится абьюз.
 import { logAndSendOrder, rateLimitReason, type OrderItem } from "@/lib/orders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Заказ обязан прийти со страницы меню (браузер шлёт Origin на fetch-POST даже
+// same-origin). Пускаем свой хост, домены theraki.ru, превью *.vercel.app, localhost.
+function originAllowed(req: Request): boolean {
+  const host = req.headers.get("host") || "";
+  const src = req.headers.get("origin") || req.headers.get("referer") || "";
+  if (!src) return false; // ни Origin, ни Referer → не браузерный fetch (curl/скрипт)
+  let h: string;
+  try {
+    h = new URL(src).host;
+  } catch {
+    return false;
+  }
+  return h === host || /(^|\.)theraki\.ru$/.test(h) || h.endsWith(".vercel.app") || h.startsWith("localhost");
+}
+
+// Стол из QR (?t=): цифры/буквы/пробел/дефис, ≤16. Мусор/эмодзи (перелив
+// callback_data > 64 байт, спам /столы) → трактуем как «без стола», заказ не рушим.
+const TABLE_RE = /^[0-9A-Za-zА-Яа-яЁё \-]{1,16}$/;
+
 export async function POST(req: Request): Promise<Response> {
+  if (!originAllowed(req)) {
+    return Response.json({ error: "Заказ принимается только со страницы меню." }, { status: 403 });
+  }
   let body: unknown;
   try {
     body = await req.json();
@@ -24,14 +50,17 @@ export async function POST(req: Request): Promise<Response> {
     const label = String(o.label ?? "").trim().slice(0, 200);
     const qtyText = String(o.qtyText ?? "").trim().slice(0, 40);
     const sum = Number(o.sum);
-    if (!label || !Number.isFinite(sum) || sum < 0 || sum > 100_000_000) {
+    // Реальные потолки (раньше 100 млн — абсурд): позиция ≤ 500 000 ₽, всего ≤ 2 млн.
+    if (!label || !Number.isFinite(sum) || sum < 0 || sum > 500_000) {
       return Response.json({ error: "Битая позиция в заказе." }, { status: 400 });
     }
     items.push({ label, qtyText, sum });
   }
-  // Сумму считаем на сервере — не доверяем клиентскому total.
   const total = items.reduce((s, i) => s + i.sum, 0);
-  const table = String(b.table ?? "").trim().slice(0, 20);
+  if (total > 2_000_000) return Response.json({ error: "Слишком большая сумма заказа." }, { status: 400 });
+
+  const rawTable = String(b.table ?? "").trim();
+  const table = TABLE_RE.test(rawTable) ? rawTable : ""; // невалидный стол → без стола
   const comment = String(b.comment ?? "").trim().slice(0, 500);
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";

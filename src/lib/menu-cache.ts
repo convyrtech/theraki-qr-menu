@@ -22,13 +22,20 @@ const loadMenu = unstable_cache(
     // это НЕ валидное меню. Бросаем, чтобы сработал фолбэк на menu.ts и пустой
     // результат не закешировался как «правильное пустое меню».
     if (!chapters.length) throw new Error("БД вернула 0 глав — считаем меню недоступным.");
-    // Раки-доска РАЗВЯЗАНА от глав: отсутствие/сбой одной jsonb-строки не должен
-    // ронять всё меню в статику — берём статических раков, а живые главы отдаём как есть.
+    // Раки-доска РАЗВЯЗАНА от глав: отсутствие/сбой/битая-форма одной jsonb-строки
+    // не должны ронять всё меню в статику — берём статических раков, главы живые.
     let rakiChapter: RakiBoard;
     try {
-      rakiChapter = await getRakiBoard();
+      const board = await getRakiBoard();
+      // Валидация формы: витрина делает raki.sizes.map/preparations.map — если jsonb
+      // структурно битый (не массив), рендер бросил бы и увёл ВСЁ меню в error boundary
+      // МИМО развязки. Битую форму → на статику раков (аудит L1).
+      if (!board || !Array.isArray(board.sizes) || !Array.isArray(board.preparations)) {
+        throw new Error("raki-board: битая форма (sizes/preparations не массивы)");
+      }
+      rakiChapter = board;
     } catch (e) {
-      console.error("[menu] раки-доска недоступна — статика только для раков, главы живые:", e);
+      console.error("[menu] раки-доска недоступна/битая — статика только для раков, главы живые:", e);
       rakiChapter = staticRaki as RakiBoard;
     }
     return { chapters, rakiChapter, fallback: false };

@@ -110,8 +110,21 @@ export async function setRecipeSurcharge(
   const p = prep(data, prepId);
   if (!p.recipes[idx]) throw new Error("Рецепт не найден.");
   const old = p.recipes[idx].surcharge ?? null;
-  if (surcharge) p.recipes[idx].surcharge = surcharge.trim();
-  else delete p.recipes[idx].surcharge;
+  if (surcharge) {
+    // Храним и строку-ярлык, и ЧИСЛО extra (его читает витрина). Парсим ПЕРВУЮ
+    // группу цифр; нет числа → понятная ошибка, а не тихая надбавка 0 ₽ (аудит M1).
+    const trimmed = surcharge.trim();
+    const m = trimmed.replace(/\s/g, "").match(/\d+/);
+    const n = m ? Number(m[0]) : NaN;
+    if (!Number.isFinite(n) || n <= 0 || n > 1_000_000) {
+      throw new Error("Не вижу сумму надбавки. Укажите числом, например: +1 000 ₽ (от 1 до 1 000 000).");
+    }
+    p.recipes[idx].surcharge = trimmed;
+    p.recipes[idx].extra = n;
+  } else {
+    delete p.recipes[idx].surcharge;
+    delete p.recipes[idx].extra;
+  }
   await save(data, version, actorId, "raki_recipe_surcharge", { prepId, idx, old, new: surcharge });
 }
 

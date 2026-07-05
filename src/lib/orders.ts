@@ -1,6 +1,7 @@
 // Приём заказа из QR-меню: формат + отправка в Telegram-чат персонала + лог.
 // Чат: TG_ORDERS_CHAT_ID (env), по умолчанию — первый из TG_ADMIN_IDS (личка владельца).
 import { dbQuery } from "@/bot/db";
+import { escapeHtml } from "@/lib/text";
 
 export type OrderItem = { label: string; qtyText: string; sum: number };
 export type Order = { table: string; comment: string; items: OrderItem[]; total: number };
@@ -11,27 +12,34 @@ export function ordersChatId(): string {
   return (process.env.TG_ADMIN_IDS || "").split(",")[0].trim();
 }
 
-const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escHtml = escapeHtml; // единый источник экранирования (см. lib/text.ts)
 const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 
 /**
- * Лимит частоты. ВАЖНО: НЕ по IP — в зале все гости за общим Wi-Fi под одним внешним
- * IP, лимит по IP заблокировал бы весь зал. Защита:
- *  - по столу: не больше 8/мин (один стол не зафлудит; живой стол столько и не заказывает);
- *  - глобально: до 80/мин (потолок объёма от внешнего флуда, недостижим легально даже
- *    в час пик небольшой раковарни). IP только пишем в журнал (форензика), не лимитируем.
- * Возвращает причину отказа или null (ок).
+ * Лимит частоты — АТОМАРНО и ДО отправки (аудит H1). Раньше счётчик читался из
+ * orders_log ПЕРЕД отправкой, а писался ПОСЛЕ — окно гонки (TOCTOU): параллельный
+ * флуд проскакивал весь, бот упирался в лимит Telegram и настоящие заказы падали.
+ * Теперь каждая попытка атомарно ПИШЕТ hit и в том же запросе считает окно —
+ * бёрст самоограничивается. Не по IP (зал за общим Wi-Fi = один IP → заблокировал бы всех).
+ *  - по столу ≤8/мин; глобально ≤30/мин (ниже реального лимита Telegram на группу,
+ *    чтобы самоограничиться раньше, чем Telegram начнёт 429-ить; смена table глобальный
+ *    потолок не обходит). Возвращает причину отказа или null.
  */
 export async function rateLimitReason(table: string): Promise<string | null> {
   const rows = (await dbQuery(
-    `SELECT
-       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute')::int AS total,
-       (SELECT count(*) FROM orders_log WHERE at > now() - interval '1 minute' AND table_no = $1)::int AS by_table`,
+    `WITH ins AS (INSERT INTO rate_hits (table_no) VALUES ($1) RETURNING at)
+     SELECT
+       (SELECT count(*) FROM rate_hits WHERE at > now() - interval '1 minute')::int AS total,
+       (SELECT count(*) FROM rate_hits WHERE table_no = $1 AND at > now() - interval '1 minute')::int AS by_table`,
     [table || null],
   )) as unknown as { total: number; by_table: number }[];
+  // Периодическая уборка старых hit-ов (fire-and-forget) — под атакой таблица растёт.
+  if (Math.random() < 0.03) {
+    void dbQuery(`DELETE FROM rate_hits WHERE at < now() - interval '1 hour'`).catch(() => {});
+  }
   const r = rows[0];
   if (table && r.by_table >= 8) return "С этого стола заказы идут слишком часто. Подождите минуту.";
-  if (r.total >= 80) return "Слишком много заказов сейчас. Попробуйте через минуту или позовите официанта.";
+  if (r.total >= 30) return "Слишком много заказов сейчас. Попробуйте через минуту или позовите официанта.";
   return null;
 }
 

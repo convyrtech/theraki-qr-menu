@@ -7,7 +7,7 @@
 import { Bot, InlineKeyboard, InputFile, type Context } from "grammy";
 import sharp from "sharp";
 import { savePhotoBytes, deletePhotoBytes } from "./photo-db";
-import { firstSentence } from "@/lib/text";
+import { firstSentence, escapeHtml } from "@/lib/text";
 import { listChapters, listEntries, getEntry, listDeleted, getChapterMeta, exportAll } from "./menu-admin-db";
 import {
   setHidden,
@@ -89,8 +89,7 @@ const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 // ввода владельца (название/описание/грамовка/метка формата/рецепт): символы
 // < > & иначе ломают разбор entities → Telegram 400 → карточка не открывается.
 // Кнопкам (InlineKeyboard.text) экранирование НЕ нужно — это не HTML.
-const esc = (s: string | null | undefined): string =>
-  (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = escapeHtml; // единый источник экранирования (см. lib/text.ts)
 
 // Обрезка длинного текста для показа в карточке: очень длинное описание иначе
 // может перевалить лимит сообщения Telegram (4096) → карточка не откроется.
@@ -106,15 +105,30 @@ function canManageOrders(ctx: Context): boolean {
 const hhmm = (at: string): string =>
   new Date(at).toLocaleTimeString("ru-RU", { timeZone: "Europe/Moscow", hour: "2-digit", minute: "2-digit" });
 
+// Лимит сообщения Telegram — 4096. Кап с запасом; ИТОГО добавляется ВСЕГДА,
+// даже если список позиций пришлось обрезать (заспамленный стол — аудит L9).
+const TG_CAP = 3600;
+
 function formatBill(bill: TableBill): string {
   if (!bill.rounds.length) {
     return `🧾 <b>Стол ${esc(bill.table)}</b>\nПока нет заказов на этом столе (или он только что закрыт).`;
   }
   const lines = [`🧾 <b>СЧЁТ · стол ${esc(bill.table)}</b>`, "──────────"];
-  bill.rounds.forEach((r, i) => {
-    lines.push(`<b>Круг ${i + 1}</b> · ${hhmm(r.at)}`);
-    for (const it of r.items) lines.push(`  • ${esc(it.label)} · ${esc(it.qtyText)} — ${rub(it.sum)}`);
-  });
+  let len = lines.join("\n").length;
+  let truncated = false;
+  outer: for (let i = 0; i < bill.rounds.length; i++) {
+    const head = `<b>Круг ${i + 1}</b> · ${hhmm(bill.rounds[i].at)}`;
+    if (len + head.length > TG_CAP) { truncated = true; break; }
+    lines.push(head);
+    len += head.length + 1;
+    for (const it of bill.rounds[i].items) {
+      const row = `  • ${esc(it.label)} · ${esc(it.qtyText)} — ${rub(it.sum)}`;
+      if (len + row.length > TG_CAP) { truncated = true; break outer; }
+      lines.push(row);
+      len += row.length + 1;
+    }
+  }
+  if (truncated) lines.push("… <i>список длинный, показаны не все позиции</i>");
   lines.push("──────────");
   const wordPoz = bill.itemCount === 1 ? "позиция" : "позиций";
   lines.push(`ИТОГО: <b>${rub(bill.total)}</b>  ·  ${bill.itemCount} ${wordPoz}, ${bill.rounds.length} кр.`);
@@ -123,12 +137,13 @@ function formatBill(bill: TableBill): string {
 
 function formatOpenTables(list: OpenTable[]): string {
   if (!list.length) return "Открытых столов нет — все счета закрыты.";
+  const grand = list.reduce((s, t) => s + t.total, 0);
+  const shown = list.slice(0, 60); // кап вывода (спам уникальными столами — аудит M4)
   const lines = ["🍽 <b>ОТКРЫТЫЕ СТОЛЫ</b>", "──────────"];
-  let grand = 0;
-  for (const t of list) {
-    grand += t.total;
+  for (const t of shown) {
     lines.push(`Стол <b>${esc(t.table)}</b> · ${rub(t.total)} · ${t.rounds} кр. · ${hhmm(t.lastAt)}`);
   }
+  if (list.length > shown.length) lines.push(`…и ещё ${list.length - shown.length} ст.`);
   lines.push("──────────");
   lines.push(`Всего открыто: <b>${rub(grand)}</b> на ${list.length} ст.`);
   return lines.join("\n");
@@ -408,7 +423,12 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   bot.use(async (ctx, next) => {
     if (!isAdmin(ctx.from?.id)) {
       if (ctx.callbackQuery) await ack(ctx, { text: "Доступ только для персонала." });
-      else if (ctx.message) await ctx.reply("Этот бот управляет меню The Raki и доступен только персоналу.");
+      // В ГРУППЕ (чат заказов) на обычные сообщения официанта молчим — иначе бот
+      // огрызается «только для персонала» на каждый реплай и зашумляет чат (аудит M3).
+      // Меню-правки всё равно закрыты: сюда доходят только не-order-сообщения не-админа.
+      else if (ctx.message && ctx.chat?.type === "private") {
+        await ctx.reply("Этот бот управляет меню The Raki и доступен только персоналу.");
+      }
       return; // не передаём дальше
     }
     await next();
@@ -794,6 +814,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   // Приём фото/файла: работает, когда открыт диалог «🖼 Фото». Бот скачивает,
   // сжимает в WebP и кладёт в БД; entry.photo = внутренний версионированный URL.
   bot.on(["message:photo", "message:document"], async (ctx) => {
+    // Диалоги правки меню — только в личке. Иначе фото админа в группе заказов
+    // съелось бы диалогом, открытым в личке (bot_state по user_id) — аудит L5.
+    if (ctx.chat?.type !== "private") return;
     const st = await getState(ctx.from!.id);
     const isPhotoStep = st?.action === "photo" || st?.action === "addphoto";
     if (!isPhotoStep || st!.entryId == null) {
@@ -816,6 +839,8 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
 
   // Единственный обработчик текста: если у пользователя открыт диалог — применяем.
   bot.on("message:text", async (ctx) => {
+    // Диалоги — только в личке; в группе бот не съедает текст админа и не отвечает (L5).
+    if (ctx.chat?.type !== "private") return;
     const st = await getState(ctx.from!.id);
     if (!st) {
       return void ctx.reply("Не понял. /menu — открыть разделы меню.");
@@ -827,7 +852,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       try {
         await applyRakiInput(ctx, st, value, changed);
       } catch (e) {
-        await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+        await replyDialogErr(ctx, e);
       }
       return;
     }
@@ -837,7 +862,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       try {
         await applyVariantInput(ctx, st, value, changed);
       } catch (e) {
-        await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+        await replyDialogErr(ctx, e);
       }
       return;
     }
@@ -863,7 +888,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       try {
         await applyAddWizard(ctx, st, value, changed);
       } catch (e) {
-        await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+        await replyDialogErr(ctx, e);
       }
       return;
     }
@@ -914,7 +939,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       await changed();
       await showCard(ctx, st.entryId, "✓ Сохранено.");
     } catch (e) {
-      await ctx.reply(errText(e) + " Попробуйте ещё раз или /cancel.");
+      await replyDialogErr(ctx, e);
     }
   });
 
@@ -941,6 +966,21 @@ async function showCard(ctx: Context, entryId: number, prefix?: string) {
 
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : "Ошибка. Попробуйте ещё раз.";
+}
+
+/**
+ * Ответ на ошибку в диалоге. Если объект исчез (удалён параллельно другим админом),
+ * повтор бессмыслен — сбрасываем диалог, иначе админ застревает в цикле ошибок
+ * до /cancel (аудит L8). Прочие ошибки (плохой ввод) — предлагаем повторить.
+ */
+async function replyDialogErr(ctx: Context, e: unknown): Promise<void> {
+  const msg = errText(e);
+  if (/удален|не найден/i.test(msg)) {
+    await clearState(ctx.from!.id);
+    await ctx.reply(msg + " Диалог сброшен. /menu.");
+  } else {
+    await ctx.reply(msg + " Попробуйте ещё раз или /cancel.");
+  }
 }
 
 /** Применить текстовый ввод раки-диалога (цена размера / рецепты). */

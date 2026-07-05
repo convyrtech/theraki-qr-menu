@@ -43,6 +43,22 @@ body:has(.mn) { background: #ffffff; }
   position: fixed; inset: 0; z-index: 100; overflow: hidden;
 }
 
+/* ФЕЙЛСЕЙФ (аудит H4): заставку снимает JS первым кадром. Если JS завис/не
+   загрузился (слабый Wi-Fi зала, старый браузер), гость иначе застрянет на белом
+   листе с логотипом — меню недоступно. Эта чистая CSS-анимация растворяет
+   заставку через 8с БЕЗ участия JS. На рабочем пути React снимает .mn-intro
+   (unmount) за ~3.4с — анимация не доигрывает. 8с > длительности интро, поэтому
+   на медленном-но-рабочем телефоне не сработает преждевременно. */
+@keyframes mn-intro-failsafe {
+  to { opacity: 0; visibility: hidden; pointer-events: none; }
+}
+.mn-intro {
+  animation: mn-intro-failsafe 0.8s ease 8s forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-intro { animation-delay: 3s; }
+}
+
 /* Сцена прожига — GPU-канвас: WebKit рисует SVG-маски без ускорения (лагало
    на iPhone), canvas destination-out композитинг ускорен на всех платформах.
    Вся хореография (влёт каракуль, рост клякс, кромка) — в drawIntroFrame. */
@@ -1069,4 +1085,10 @@ body:has(.mn) { background: #ffffff; }
 .mn__raki-added {
   text-align: center; background: var(--blue-600); color: #fff; border-radius: 999px; padding: 16px;
   font-family: var(--font-golos, sans-serif); font-size: 15px; letter-spacing: .03em;
+}
+/* Подсказка у неозаказуемых вариантных позиций (пиво/чай) — «формат у официанта» (M2) */
+.mn__row-hint {
+  grid-column: 1 / -1; margin-top: 6px;
+  font-family: var(--font-mono, monospace); font-size: 11px; letter-spacing: .06em;
+  color: var(--muted, #6b8494); font-style: normal;
 }

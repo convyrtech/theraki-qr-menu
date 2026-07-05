@@ -22,7 +22,13 @@ export async function setHidden(entryId: number, hidden: boolean, actorId: numbe
     entryId,
   ])) as unknown as { name: string; is_hidden: boolean }[];
   if (!rows.length) throw new Error("Позиция не найдена.");
-  await dbQuery(`UPDATE entries SET is_hidden=$2, updated_at=now() WHERE id=$1`, [entryId, hidden]);
+  // AND NOT is_deleted + RETURNING: если позицию удалили между SELECT и UPDATE
+  // (другой админ параллельно), правка не применится к удалённой (аудит L4).
+  const upd = (await dbQuery(
+    `UPDATE entries SET is_hidden=$2, updated_at=now() WHERE id=$1 AND NOT is_deleted RETURNING id`,
+    [entryId, hidden],
+  )) as unknown as { id: number }[];
+  if (!upd.length) throw new Error("Позиция была удалена — правка отменена.");
   await audit(actorId, hidden ? "hide" : "unhide", entryId, {
     name: rows[0].name,
     old: rows[0].is_hidden,
@@ -37,7 +43,11 @@ export async function setPrice(entryId: number, price: number, actorId: number):
     entryId,
   ])) as unknown as { name: string; price: number }[];
   if (!rows.length) throw new Error("Позиция не найдена.");
-  await dbQuery(`UPDATE entries SET price=$2, updated_at=now() WHERE id=$1`, [entryId, price]);
+  const upd = (await dbQuery(
+    `UPDATE entries SET price=$2, updated_at=now() WHERE id=$1 AND NOT is_deleted RETURNING id`,
+    [entryId, price],
+  )) as unknown as { id: number }[];
+  if (!upd.length) throw new Error("Позиция была удалена — правка отменена.");
   await audit(actorId, "price", entryId, { name: rows[0].name, old: rows[0].price, new: price });
 }
 
@@ -57,7 +67,11 @@ export async function setText(
     [entryId],
   )) as unknown as { name: string; old: string | null }[];
   if (!rows.length) throw new Error("Позиция не найдена.");
-  await dbQuery(`UPDATE entries SET ${col}=$2, updated_at=now() WHERE id=$1`, [entryId, value]);
+  const upd = (await dbQuery(
+    `UPDATE entries SET ${col}=$2, updated_at=now() WHERE id=$1 AND NOT is_deleted RETURNING id`,
+    [entryId, value],
+  )) as unknown as { id: number }[];
+  if (!upd.length) throw new Error("Позиция была удалена — правка отменена.");
   await audit(actorId, "text", entryId, { name: rows[0].name, field, old: rows[0].old, new: value });
 }
 
@@ -72,7 +86,11 @@ export async function setPhoto(entryId: number, url: string | null, actorId: num
     entryId,
   ])) as unknown as { name: string; photo: string | null }[];
   if (!rows.length) throw new Error("Позиция не найдена.");
-  await dbQuery(`UPDATE entries SET photo=$2, updated_at=now() WHERE id=$1`, [entryId, url]);
+  const upd = (await dbQuery(
+    `UPDATE entries SET photo=$2, updated_at=now() WHERE id=$1 AND NOT is_deleted RETURNING id`,
+    [entryId, url],
+  )) as unknown as { id: number }[];
+  if (!upd.length) throw new Error("Позиция была удалена — правка отменена.");
   await audit(actorId, "photo", entryId, { name: rows[0].name, old: rows[0].photo, new: url });
 }
 
@@ -92,7 +110,11 @@ export async function setFlag(
     [entryId],
   )) as unknown as { name: string; old: boolean }[];
   if (!rows.length) throw new Error("Позиция не найдена.");
-  await dbQuery(`UPDATE entries SET ${col}=$2, updated_at=now() WHERE id=$1`, [entryId, value]);
+  const upd = (await dbQuery(
+    `UPDATE entries SET ${col}=$2, updated_at=now() WHERE id=$1 AND NOT is_deleted RETURNING id`,
+    [entryId, value],
+  )) as unknown as { id: number }[];
+  if (!upd.length) throw new Error("Позиция была удалена — правка отменена.");
   await audit(actorId, "flag", entryId, { name: rows[0].name, field: flag, old: rows[0].old, new: value });
 }
 
@@ -186,9 +208,11 @@ export function parseVariant(text: string): { label: string; price: number } | n
   const parts = text.split("=");
   if (parts.length !== 2) return null;
   const label = parts[0].trim();
-  const price = Number(parts[1].replace(/\s/g, "").replace(",", "."));
-  if (!label || !Number.isInteger(price) || price < 0) return null;
-  return { label, price };
+  // Строгий паттерн как у parsePrice: только целые ≤ 7 цифр. Раньше Number()
+  // принимал научную/hex-нотацию без предела («=1e9» → 1 млрд ₽) — аудит L11.
+  const priceStr = parts[1].replace(/[\s,]/g, "");
+  if (!label || !/^\d{1,7}$/.test(priceStr)) return null;
+  return { label, price: Number(priceStr) };
 }
 
 /** Добавить новую категорию (в конец). layout: 'cards' | 'list'. Возвращает id. */
@@ -200,8 +224,9 @@ export async function addChapter(
   const t = title.trim();
   if (!t) throw new Error("Название категории пустое.");
   if (layout !== "cards" && layout !== "list") throw new Error("Неверный стиль категории.");
-  // Опаковый уникальный id (пользователь видит название, не id). Base36 времени.
-  const id = "cat_" + Date.now().toString(36);
+  // Опаковый уникальный id (пользователь видит название, не id). Время + рандом-
+  // суффикс: владелец и жена, добавив категорию в одну мс, иначе словили бы PK-конфликт (аудит L7).
+  const id = "cat_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const ord = (await dbQuery(`SELECT COALESCE(MAX(sort_order)+1, 0) AS next FROM chapters`)) as unknown as {
     next: number;
   }[];

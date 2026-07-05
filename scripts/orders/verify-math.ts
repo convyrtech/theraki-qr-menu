@@ -6,7 +6,8 @@ let ok = 0;
 let fail = 0;
 function check(label: string, cond: boolean) {
   console.log(`  [${cond ? "OK" : "FAIL"}] ${label}`);
-  cond ? ok++ : fail++;
+  if (cond) ok++;
+  else fail++;
 }
 
 console.log("=== СУММА СТРОКИ (lineSum) ===");

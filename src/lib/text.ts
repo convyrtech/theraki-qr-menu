@@ -6,3 +6,14 @@ export function firstSentence(s: string): string {
   const m = s.match(/^[^.!?]*[.!?]/);
   return m && m[0].length < s.length ? m[0] : s;
 }
+
+/**
+ * Экранирование для Telegram parse_mode:"HTML". ЕДИНЫЙ источник — раньше было
+ * два побайтово одинаковых дубля (orders.ts esc + bot.ts esc), правка
+ * безопасности в одном молча не попадала во второй (аудит-халтура). ОБЯЗАТЕЛЬНО
+ * для любых значений из БД/ввода гостя/владельца: < > & иначе ломают entities.
+ * & экранируем ПЕРВЫМ, иначе &lt; превратится в &amp;lt;.
+ */
+export function escapeHtml(s: string | null | undefined): string {
+  return (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}

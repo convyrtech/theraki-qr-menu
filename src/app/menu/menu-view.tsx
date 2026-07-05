@@ -87,7 +87,9 @@ function buildSections(chapters: Chapter[], raki: RakiData) {
     entries: DRINK_IDS.flatMap((id): MenuEntry[] => {
       const ch = chapters.find((c) => c.id === id);
       if (!ch) return [];
-      return ch.entries.map((e): MenuEntry => ({ ...e, group: e.group ?? "Пиво" }));
+      // Под-группу «Пиво» проставляем ТОЛЬКО пиву — иначе новая вода/чай без группы,
+      // добавленная через бота, попадала бы под подзаголовок «Пиво» (аудит M7).
+      return ch.entries.map((e): MenuEntry => ({ ...e, group: e.group ?? (id === "beer" ? "Пиво" : undefined) }));
     }),
   };
   const RAW_SECTIONS = [
@@ -103,7 +105,10 @@ function buildSections(chapters: Chapter[], raki: RakiData) {
   );
   const known = new Set(MENU_ORDER);
   const extra = RAW_SECTIONS.filter((section) => !known.has(section.id));
-  return [...ordered, ...extra];
+  // Пустые видимые главы (создали категорию без позиций / всё в стоп-листе) не
+  // рендерим — иначе болтающийся заголовок + пустая панель + пустая пилюля (аудит M6).
+  // Раки держим всегда (рисуются доской, не entries).
+  return [...ordered, ...extra].filter((section) => section.id === "raki" || section.entries.length > 0);
 }
 
 // Категории-списки (без фото): компактный текст, не карточки. Стиль теперь из БД
@@ -370,8 +375,15 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
 
   const size = raki.sizes.find((s) => s.tier === tier);
   const recipe = prep.recipes[recipeIdx];
-  // Надбавка рецепта («+1 000 ₽») — фикс. к строке, входит в цену.
-  const extra = recipe?.surcharge ? Number(recipe.surcharge.replace(/[^\d]/g, "")) || 0 : 0;
+  // Надбавка рецепта («+1 000 ₽») — фикс. к строке, входит в цену. Приоритет —
+  // числовое поле extra (его заполняет бот при вводе); иначе ПЕРВАЯ группа цифр из
+  // строки (не склейка всех: «+1 000 ₽ (за 0,5 кг)» = 1000, а не 100005 — аудит M1).
+  const recExtra = (recipe as { extra?: number } | undefined)?.extra;
+  const extra = Number.isFinite(recExtra)
+    ? (recExtra as number)
+    : recipe?.surcharge
+      ? Number(recipe.surcharge.replace(/\s/g, "").match(/\d+/)?.[0] ?? 0)
+      : 0;
   const sum = size ? Math.round(size.price * weight) + extra : 0;
   const kg = (w: number) => `${w} кг`.replace(".", ",");
 
@@ -932,6 +944,10 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
   return (
     <CartProvider>
     <div className={"mn" + (introDone ? " mn--introdone" : "")}>
+      {/* Полностью отключённый JS: заставку снимать некому — прячем её сразу (H4). */}
+      <noscript>
+        <style>{`.mn-intro{display:none!important}`}</style>
+      </noscript>
       <MenuIntro onDone={handleIntroDone} />
 
       {/* Фон-паттерн из каракулей: плотный бесшовный тайл во всю ленту (как обклейка),
@@ -1005,6 +1021,11 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                           <div className="mn__row-cart">
                             <AddToCart item={cartItemOf(e)} />
                           </div>
+                        ) : e.variants?.length ? (
+                          // Позиции с форматами (пиво/чай) пока не заказуемы через QR (B4).
+                          // Подсказка, чтобы отсутствие кнопки читалось как «выбор формата у
+                          // официанта», а не как непоследовательность рядом с заказуемыми (M2).
+                          <span className="mn__row-hint">формат — у официанта</span>
                         ) : null}
                       </div>
                     </Fragment>
