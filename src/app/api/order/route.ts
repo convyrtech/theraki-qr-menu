@@ -71,7 +71,14 @@ export async function POST(req: Request): Promise<Response> {
   const comment = String(b.comment ?? "").trim().slice(0, 500);
 
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
-  const reason = await rateLimitReason(table);
+  // FAIL-OPEN: анти-спам не должен ронять ЛЕГИТИМНЫЙ заказ. Если запрос лимита
+  // упал (миг БД), пропускаем заказ, а не отдаём 500 гостю.
+  let reason: string | null = null;
+  try {
+    reason = await rateLimitReason(table);
+  } catch (e) {
+    console.error("[order] rate-limit сбой — пропускаем заказ (fail-open):", e);
+  }
   if (reason) return Response.json({ error: reason }, { status: 429 });
   try {
     await logAndSendOrder({ table, comment, items, total }, ip);
