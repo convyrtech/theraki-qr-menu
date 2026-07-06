@@ -14,6 +14,7 @@ export function ordersChatId(): string {
 
 const escHtml = escapeHtml; // единый источник экранирования (см. lib/text.ts)
 const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Лимит частоты — АТОМАРНО и ДО отправки (аудит H1). Раньше счётчик читался из
@@ -73,13 +74,38 @@ export async function logAndSendOrder(order: Order, ip: string): Promise<void> {
         ],
       }
     : undefined;
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: orderText(order), parse_mode: "HTML", reply_markup }),
-  });
-  if (!res.ok) {
-    throw new Error(`Telegram sendMessage ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  // Отправка с РЕТРАЯМИ на транзиентный сбой: Telegram при всплеске отвечает 429
+  // (retry_after) — краткий лимит НЕ должен ронять заказ гостя в «не удалось
+  // отправить». Ретраим 429/5xx (уважая retry_after, ≤4с) и сетевые сбои; 4xx
+  // (битый запрос) — сразу бросаем. Провал ВСЕХ попыток → route вернёт 502.
+  const payload = JSON.stringify({ chat_id: chatId, text: orderText(order), parse_mode: "HTML", reply_markup });
+  for (let attempt = 0; attempt < 4; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+    } catch (e) {
+      if (attempt < 3) {
+        await sleep(400 * (attempt + 1));
+        continue;
+      }
+      throw new Error(`Telegram сеть: ${String(e).slice(0, 200)}`);
+    }
+    if (res.ok) break;
+    const body = await res.text();
+    if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+      let waitMs = 500 * (attempt + 1);
+      try {
+        const ra = (JSON.parse(body) as { parameters?: { retry_after?: number } })?.parameters?.retry_after;
+        if (ra) waitMs = Math.min(ra * 1000, 4000);
+      } catch {}
+      await sleep(waitMs);
+      continue;
+    }
+    throw new Error(`Telegram sendMessage ${res.status}: ${body.slice(0, 200)}`);
   }
   // 2) Лог — best-effort: заказ уже у персонала, сбой записи журнала НЕ должен
   //    превращать доставленный заказ в ошибку гостю (иначе повтор → дубль).
