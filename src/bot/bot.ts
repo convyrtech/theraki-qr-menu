@@ -26,7 +26,7 @@ import {
 } from "./menu-write-db";
 import { getState, setState, clearState, claimUpdate } from "./bot-state-db";
 import { tableBill, openTables, closeTable, type TableBill, type OpenTable } from "./orders-admin-db";
-import { ordersChatId } from "@/lib/orders";
+import { ordersChatId, ordersEnabled } from "@/lib/orders";
 import {
   getBoard,
   setSizePrice,
@@ -100,6 +100,7 @@ const trunc = (s: string, n = 500): string => (s.length > n ? s.slice(0, n) + "�
 // Команды/кнопки заказов доступны в ЧАТЕ ЗАКАЗОВ (группа персонала) или админам.
 // Официант (не админ) в группе может смотреть/закрывать счёт, но НЕ трогать меню.
 function canManageOrders(ctx: Context): boolean {
+  if (!ordersEnabled()) return false; // заказы выключены → /столы, счета и закрытие неактивны
   return isAdmin(ctx.from?.id) || String(ctx.chat?.id ?? "") === ordersChatId();
 }
 const hhmm = (at: string): string =>

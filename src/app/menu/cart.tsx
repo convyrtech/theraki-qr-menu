@@ -17,6 +17,7 @@ export type CartLine = {
 };
 
 type CartCtx = {
+  enabled: boolean; // false = заказы выключены: кнопки/панель не рендерятся
   lines: Record<string, CartLine>;
   table: string;
   add: (item: Omit<CartLine, "qty">) => void;
@@ -37,7 +38,7 @@ export function qtyText(l: { unit: "шт" | "кг"; qty: number }): string {
   return l.unit === "кг" ? `${l.qty} кг`.replace(".", ",") : `×${l.qty}`;
 }
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
+export function CartProvider({ children, enabled = true }: { children: React.ReactNode; enabled?: boolean }) {
   const [lines, setLines] = useState<Record<string, CartLine>>({});
   const [table, setTable] = useState("");
 
@@ -122,8 +123,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const count = arr.length;
 
   const value = useMemo(
-    () => ({ lines, table, add, put, setQty, clear, count, total }),
-    [lines, table, add, put, setQty, clear, count, total],
+    () => ({ enabled, lines, table, add, put, setQty, clear, count, total }),
+    [enabled, lines, table, add, put, setQty, clear, count, total],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -136,8 +137,9 @@ export function useCart(): CartCtx {
 
 /** Кнопка «+ в заказ» / счётчик у позиции. */
 export function AddToCart({ item }: { item: Omit<CartLine, "qty"> }) {
-  const { lines, add, setQty } = useCart();
+  const { enabled, lines, add, setQty } = useCart();
   const qty = lines[item.key]?.qty ?? 0;
+  if (!enabled) return null;
   if (qty <= 0) {
     return (
       <button
@@ -169,7 +171,7 @@ const rub = (n: number) => n.toLocaleString("ru-RU") + " ₽";
 
 /** Нижняя панель + окно отправки заказа. */
 export function CartBar() {
-  const { lines, table, count, total, setQty, clear } = useCart();
+  const { enabled, lines, table, count, total, setQty, clear } = useCart();
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
@@ -190,6 +192,7 @@ export function CartBar() {
     return () => clearTimeout(t);
   }, [done]);
 
+  if (!enabled) return null; // заказы выключены — панели нет (после хуков: rules-of-hooks)
   if (done && count === 0)
     return (
       <div className="mn-cart-toast" role="status" onClick={() => setDone(false)}>

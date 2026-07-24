@@ -2,6 +2,7 @@
 // "menu", ISR) и отдаёт данные в клиентское view. Между правками бота страница
 // статически быстрая; после revalidateTag("menu") пересобирается за секунды.
 import { getMenuForPage } from "@/lib/menu-cache";
+import { ordersEnabled } from "@/lib/orders";
 import { MenuView } from "./menu-view";
 
 // Безусловный TTL на кэш роута: даже если тегированный кэш (revalidateTag "menu")
@@ -11,5 +12,5 @@ export const revalidate = 300;
 
 export default async function MenuPage() {
   const { chapters, rakiChapter } = await getMenuForPage();
-  return <MenuView chapters={chapters} rakiChapter={rakiChapter} />;
+  return <MenuView chapters={chapters} rakiChapter={rakiChapter} ordersEnabled={ordersEnabled()} />;
 }

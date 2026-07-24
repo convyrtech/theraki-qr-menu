@@ -367,7 +367,7 @@ function RakiBlock({ raki, onOpen }: { raki: RakiData; onOpen: (p: RakiPreparati
 /* ---------- РАКИ деталь-КОНФИГУРАТОР: размер + рецепт + вес → в заказ ---------- */
 function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPreparation; onClose: () => void }) {
   const photo = prep.id === "boiled" ? "/images/menu-raki-boiled.webp" : "/images/menu-raki-fried.webp";
-  const { put } = useCart();
+  const { put, enabled: ordersOn } = useCart();
   const [tier, setTier] = useState<string | null>(null); // размер (обязателен)
   const [recipeIdx, setRecipeIdx] = useState(0); // рецепт (по умолчанию первый)
   const [weight, setWeight] = useState(1); // кг, мин 1, шаг 0,5
@@ -415,7 +415,7 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
         <img className="mn__detail-photo" onError={hideBrokenImg} src={photo} alt={"Раки " + prep.title.toLowerCase()} />
         <h3 className="mn__detail-name">Раки {prep.title.toLowerCase()}</h3>
 
-        <div className="mn__raki-pick">Выберите размер:</div>
+        <div className="mn__raki-pick">{ordersOn ? "Выберите размер:" : "Размеры:"}</div>
         <div className="mn__raki-board">
           <div className="mn__raki-head">
             <span>Размер</span>
@@ -456,7 +456,7 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
           ))}
         </div>
 
-        {tier ? (
+        {tier && ordersOn ? (
           <div className="mn__raki-weight">
             <span>Вес:</span>
             <div className="mn-cart-step">
@@ -471,15 +471,17 @@ function RakiDetail({ raki, prep, onClose }: { raki: RakiData; prep: RakiPrepara
           </div>
         ) : null}
 
-        <div className="mn__raki-foot">
-          {added ? (
-            <div className="mn__raki-added">✓ Добавлено в заказ</div>
-          ) : (
-            <button type="button" className="mn-cart-send" disabled={!size || !recipe} onClick={addToOrder}>
-              {size ? `Добавить в заказ · ${fmtP(sum)} ₽` : "Сначала выберите размер"}
-            </button>
-          )}
-        </div>
+        {ordersOn ? (
+          <div className="mn__raki-foot">
+            {added ? (
+              <div className="mn__raki-added">✓ Добавлено в заказ</div>
+            ) : (
+              <button type="button" className="mn-cart-send" disabled={!size || !recipe} onClick={addToOrder}>
+                {size ? `Добавить в заказ · ${fmtP(sum)} ₽` : "Сначала выберите размер"}
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -816,7 +818,7 @@ function MenuIntro({ onDone }: { onDone: () => void }) {
   );
 }
 
-export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiChapter: RakiData }) {
+export function MenuView({ chapters, rakiChapter, ordersEnabled = false }: { chapters: Chapter[]; rakiChapter: RakiData; ordersEnabled?: boolean }) {
   const SECTIONS = useMemo(() => buildSections(chapters, rakiChapter), [chapters, rakiChapter]);
   const [detail, setDetail] = useState<MenuEntry | null>(null); // крупная карточка блюда
   const [rakiPrep, setRakiPrep] = useState<RakiPreparation | null>(null); // деталь раков (способ)
@@ -942,7 +944,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
   }, []);
 
   return (
-    <CartProvider>
+    <CartProvider enabled={ordersEnabled}>
     <div className={"mn" + (introDone ? " mn--introdone" : "")}>
       {/* Полностью отключённый JS: заставку снимать некому — прячем её сразу (H4). */}
       <noscript>
@@ -1021,10 +1023,11 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
                           <div className="mn__row-cart">
                             <AddToCart item={cartItemOf(e)} />
                           </div>
-                        ) : e.variants?.length ? (
+                        ) : e.variants?.length && ordersEnabled ? (
                           // Позиции с форматами (пиво/чай) пока не заказуемы через QR (B4).
                           // Подсказка, чтобы отсутствие кнопки читалось как «выбор формата у
                           // официанта», а не как непоследовательность рядом с заказуемыми (M2).
+                          // При выключенных заказах кнопок нет нигде — подсказка не нужна.
                           <span className="mn__row-hint">формат — у официанта</span>
                         ) : null}
                       </div>
@@ -1128,6 +1131,7 @@ export function MenuView({ chapters, rakiChapter }: { chapters: Chapter[]; rakiC
 
 /* ---------- КРУПНАЯ КАРТОЧКА БЛЮДА (тап по позиции) ---------- */
 function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void }) {
+  const { enabled: ordersOn } = useCart();
   const photo = entry.photo ?? DISH_PHOTO[entry.name];
   return (
     <div className="mn__detail" role="dialog" aria-modal="true">
@@ -1162,7 +1166,7 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
             ))}
           </div>
         ) : null}
-        {orderable(entry) ? (
+        {orderable(entry) && ordersOn ? (
           <div className="mn__detail-cart">
             <AddToCart item={cartItemOf(entry)} />
           </div>

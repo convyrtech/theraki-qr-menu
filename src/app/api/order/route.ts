@@ -4,7 +4,7 @@
 // оплаты на сайте нет). Защита от подделки/абьюза (аудит H1/H2): проверка Origin
 // (запрос должен идти со страницы меню), строгая валидация стола, реальные потолки
 // сумм и атомарный rate-limit ДО отправки. Криптоподпись стола — Этап 2, если появится абьюз.
-import { logAndSendOrder, rateLimitReason, type OrderItem } from "@/lib/orders";
+import { logAndSendOrder, ordersEnabled, rateLimitReason, type OrderItem } from "@/lib/orders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +36,9 @@ function originAllowed(req: Request): boolean {
 const TABLE_RE = /^[0-9A-Za-zА-Яа-яЁё \-]{1,16}$/;
 
 export async function POST(req: Request): Promise<Response> {
+  if (!ordersEnabled()) {
+    return Response.json({ error: "Приём заказов отключён." }, { status: 410 });
+  }
   if (!originAllowed(req)) {
     return Response.json({ error: "Заказ принимается только со страницы меню." }, { status: 403 });
   }

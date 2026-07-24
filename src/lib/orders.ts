@@ -6,6 +6,13 @@ import { escapeHtml } from "@/lib/text";
 export type OrderItem = { label: string; qtyText: string; sum: number };
 export type Order = { table: string; comment: string; items: OrderItem[]; total: number };
 
+// Выключатель заказов (владелец отказался от функции, 2026-07-24): включается
+// только явным ORDERS_ENABLED=1. Выключено = сайт без корзины, /api/order → 410,
+// команды столов в боте неактивны. Код заказов сохранён на случай передумают.
+export function ordersEnabled(): boolean {
+  return process.env.ORDERS_ENABLED === "1";
+}
+
 export function ordersChatId(): string {
   const explicit = (process.env.TG_ORDERS_CHAT_ID || "").trim();
   if (explicit) return explicit;
