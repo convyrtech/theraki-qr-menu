@@ -227,13 +227,19 @@ export async function addChapter(
   // Опаковый уникальный id (пользователь видит название, не id). Время + рандом-
   // суффикс: владелец и жена, добавив категорию в одну мс, иначе словили бы PK-конфликт (аудит L7).
   const id = "cat_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const ord = (await dbQuery(`SELECT COALESCE(MAX(sort_order)+1, 0) AS next FROM chapters`)) as unknown as {
-    next: number;
-  }[];
+  // Новая категория встаёт ПЕРЕД напитковым хвостом (напитки всегда в конце меню),
+  // а не после него: иначе на сайте она оказалась бы после «Коллекции напитков».
+  const ord = (await dbQuery(
+    `SELECT COALESCE(MIN(sort_order), (SELECT COALESCE(MAX(sort_order)+1, 0) FROM chapters)) AS next
+       FROM chapters WHERE id = ANY($1::text[])`,
+    [[...FIXED_CHAPTERS]],
+  )) as unknown as { next: number }[];
+  const next = Number(ord[0].next);
+  await dbQuery(`UPDATE chapters SET sort_order = sort_order + 1 WHERE sort_order >= $1`, [next]);
   await dbQuery(`INSERT INTO chapters (id, title, sort_order, layout) VALUES ($1,$2,$3,$4)`, [
     id,
     t,
-    Number(ord[0].next),
+    next,
     layout,
   ]);
   await audit(actorId, "add_chapter", null, { id, title: t, layout });

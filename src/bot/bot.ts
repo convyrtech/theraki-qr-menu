@@ -475,7 +475,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
       // огрызается «только для персонала» на каждый реплай и зашумляет чат (аудит M3).
       // Меню-правки всё равно закрыты: сюда доходят только не-order-сообщения не-админа.
       else if (ctx.message && ctx.chat?.type === "private") {
-        await ctx.reply("Этот бот управляет меню The Raki и доступен только персоналу.");
+        // Best-effort: если чат недоступен (deleted account и т.п.), сбой отправки
+        // не должен ронять вебхук в 500 — иначе Telegram ретраит апдейт.
+        await ctx.reply("Этот бот управляет меню The Raki и доступен только персоналу.").catch(() => {});
       }
       return; // не передаём дальше
     }

@@ -281,6 +281,12 @@ async function main() {
   const vit = await getChapters();
   const cat = vit.find((c) => c.title === "ТЕСТ-КАТЕГОРИЯ");
   await check("категория на витрине с layout=list", !!cat && cat.layout === "list");
+  // Новая категория должна встать ПЕРЕД напитковым хвостом (напитки всегда в конце)
+  const ids = vit.map((c) => c.id);
+  await check(
+    "новая категория ПЕРЕД напитками",
+    ids.indexOf(cat!.id) < ids.indexOf("soft"),
+  );
   // Очистка: удалить категорию (и её позиции, если были) начисто
   await catSql.query("DELETE FROM entries WHERE chapter_id IN (SELECT id FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ')");
   await catSql.query("DELETE FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ'");
