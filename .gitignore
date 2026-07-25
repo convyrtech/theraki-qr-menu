@@ -35,3 +35,4 @@ recovered-salad-photos/
 /Пусто*
 
 .env*.local
+qa-step.tmp.mjs
