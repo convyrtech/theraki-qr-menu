@@ -25,6 +25,7 @@ import {
   parseVariant,
   moveChapterAfter,
   moveEntryAfter,
+  deleteChapter,
 } from "./menu-write-db";
 import { getState, setState, clearState, claimUpdate } from "./bot-state-db";
 import { tableBill, openTables, closeTable, type TableBill, type OpenTable } from "./orders-admin-db";
@@ -67,6 +68,7 @@ const HELP_TEXT = [
   "• /menu — список всех разделов.",
   "• «➕ Добавить категорию» — пишете название и выбираете вид на сайте: 🖼 карточки с фото или 📋 простой список.",
   "• «↕️ Переместить раздел» (внутри раздела) — нажмите раздел, ПОСЛЕ которого он должен стоять. Напитки всегда в конце.",
+  "• «🗑 Удалить раздел» — только для пустого раздела (сначала удалите/перенесите блюда).",
   "",
   "<b>Блюдо</b> (нажать раздел → блюдо):",
   "• 🙈 Скрыть / ♻️ Вернуть — стоп-лист (закончилось / снова есть). Скрытое помечено ⛔ и гостям не видно.",
@@ -192,8 +194,10 @@ export async function renderEntryList(
     kb.text(`${mark}${e.name} — ${rub(e.price)}`, `e:${e.id}`).row();
   }
   kb.text("➕ Добавить позицию", `addentry:${chapterId}`).row();
-  // Напитковые разделы держатся в конце меню — их не перемещаем.
-  if (!DRINK_CHAPTERS.has(chapterId)) kb.text("↕️ Переместить раздел", `mvch:${chapterId}`).row();
+  // Напитковые разделы держатся в конце меню — их не перемещаем и не удаляем.
+  if (!DRINK_CHAPTERS.has(chapterId)) {
+    kb.text("↕️ Переместить раздел", `mvch:${chapterId}`).text("🗑 Удалить раздел", `delch:${chapterId}`).row();
+  }
   kb.text("◀️ К разделам", "menu");
   const text = `<b>${esc(meta.title)}</b>\nПозиций: ${entries.length}${hidden ? ` · скрыто ${hidden}` : ""}`;
   return { text, keyboard: kb };
@@ -511,7 +515,9 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   });
 
   bot.command("help", async (ctx) => {
-    await ctx.reply(HELP_TEXT, { parse_mode: "HTML" });
+    // Кнопка внизу, чтобы после чтения инструкции не искать, куда «назад».
+    const kb = new InlineKeyboard().text("◀️ К разделам", "menu");
+    await ctx.reply(HELP_TEXT, { parse_mode: "HTML", reply_markup: kb });
   });
 
   bot.callbackQuery("help", async (ctx) => {
@@ -564,6 +570,37 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     if (!res) return void ack(ctx, { text: "Позиция не найдена." });
     await editTo(ctx, res.text, res.keyboard);
     await ack(ctx);
+  });
+
+  // --- Удаление раздела (только пустого, с переспросом) --------------------
+  bot.callbackQuery(/^delch:(.+)$/, async (ctx) => {
+    const chapterId = ctx.match![1];
+    const entries = await listEntries(chapterId);
+    if (entries.length > 0) {
+      return void ack(ctx, {
+        text: `В разделе ${entries.length} блюд. Сначала удалите или перенесите их.`,
+        show_alert: true,
+      });
+    }
+    const meta = await getChapterMeta(chapterId);
+    if (!meta) return void ack(ctx, { text: "Раздел не найден." });
+    const kb = new InlineKeyboard()
+      .text("Да, удалить раздел", `delchyes:${chapterId}`)
+      .text("✖️ Отмена", `ch:${chapterId}`);
+    await editTo(ctx, `Удалить раздел <b>«${esc(meta.title)}»</b>? Он исчезнет с сайта.`, kb);
+    await ack(ctx);
+  });
+
+  bot.callbackQuery(/^delchyes:(.+)$/, async (ctx) => {
+    try {
+      const title = await deleteChapter(ctx.match![1], ctx.from!.id);
+      await changed();
+      const res = await renderChapterList();
+      await editTo(ctx, res.text, res.keyboard);
+      await ack(ctx, { text: `Раздел «${title}» удалён.` });
+    } catch (e) {
+      await ack(ctx, { text: errText(e), show_alert: true });
+    }
   });
 
   // --- Перемещение разделов и позиций ------------------------------------

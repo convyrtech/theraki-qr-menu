@@ -287,10 +287,26 @@ async function main() {
     "новая категория ПЕРЕД напитками",
     ids.indexOf(cat!.id) < ids.indexOf("soft"),
   );
-  // Очистка: удалить категорию (и её позиции, если были) начисто
-  await catSql.query("DELETE FROM entries WHERE chapter_id IN (SELECT id FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ')");
-  await catSql.query("DELETE FROM chapters WHERE title='ТЕСТ-КАТЕГОРИЯ'");
-  await check("категория удалена начисто", !(await getChapters()).some((c) => c.title === "ТЕСТ-КАТЕГОРИЯ"));
+  // Удаление раздела ЧЕРЕЗ БОТА: с блюдом — отбито; пустой — удаляется с переспросом
+  const catId = cat!.id;
+  await bot.handleUpdate(cb(ADMIN, `addentry:${catId}`));
+  await bot.handleUpdate(msg(ADMIN, "ВРЕМЕННОЕ-БЛЮДО"));
+  await bot.handleUpdate(msg(ADMIN, "100"));
+  await bot.handleUpdate(cb(ADMIN, "addskip"));
+  await bot.handleUpdate(cb(ADMIN, "addskip"));
+  await bot.handleUpdate(cb(ADMIN, "addskip"));
+  await bot.handleUpdate(cb(ADMIN, `delch:${catId}`)); // непустой — только alert, экран не меняется
+  await bot.handleUpdate(cb(ADMIN, `delchyes:${catId}`)); // даже прямой delchyes должен отбиться
+  await check("непустой раздел НЕ удалился", (await getChapters()).some((c) => c.title === "ТЕСТ-КАТЕГОРИЯ"));
+  // убрать блюдо (soft) и удалить раздел по-настоящему
+  const tmpEntry = (await listEntries(catId))[0];
+  await bot.handleUpdate(cb(ADMIN, `del:${tmpEntry.id}`));
+  await bot.handleUpdate(cb(ADMIN, `delyes:${tmpEntry.id}`));
+  await bot.handleUpdate(cb(ADMIN, `delch:${catId}`));
+  await bot.handleUpdate(cb(ADMIN, `delchyes:${catId}`));
+  await check("пустой раздел удалён ботом (вместе с корзиной)", !(await getChapters()).some((c) => c.title === "ТЕСТ-КАТЕГОРИЯ"));
+  const catSqlCheck = await catSql.query("SELECT count(*)::int AS n FROM entries WHERE name='ВРЕМЕННОЕ-БЛЮДО'");
+  await check("soft-deleted остатки снесены начисто", (catSqlCheck.rows?.[0]?.n ?? catSqlCheck[0]?.n) === 0);
 
   // === ИДЕМПОТЕНТНОСТЬ: повтор ТОГО ЖЕ апдейта не срабатывает дважды ===
   console.log("\n=== ИДЕМПОТЕНТНОСТЬ (дубль-доставка) ===");

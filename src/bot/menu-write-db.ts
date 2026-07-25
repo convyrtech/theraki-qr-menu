@@ -324,6 +324,30 @@ export async function moveEntryAfter(
   return { name: moving.name, afterName: after?.name ?? null };
 }
 
+/**
+ * Удалить раздел. Разрешено только для ПУСТОГО раздела (без неудалённых блюд) —
+ * чтобы Наталья не снесла полраздела случайно. Остатки «корзины» (soft-deleted
+ * позиции) сносятся начисто вместе с разделом (фото уходят каскадом).
+ */
+export async function deleteChapter(chapterId: string, actorId: number): Promise<string> {
+  if (FIXED_CHAPTERS.has(chapterId)) throw new Error("Разделы напитков удалять нельзя.");
+  const ch = (await dbQuery(`SELECT title FROM chapters WHERE id=$1`, [chapterId])) as unknown as {
+    title: string;
+  }[];
+  if (!ch.length) throw new Error("Раздел не найден.");
+  const cnt = (await dbQuery(
+    `SELECT count(*)::int AS n FROM entries WHERE chapter_id=$1 AND NOT is_deleted`,
+    [chapterId],
+  )) as unknown as { n: number }[];
+  if (cnt[0].n > 0) {
+    throw new Error(`В разделе ${cnt[0].n} блюд. Сначала удалите или перенесите их.`);
+  }
+  await dbQuery(`DELETE FROM entries WHERE chapter_id=$1`, [chapterId]);
+  await dbQuery(`DELETE FROM chapters WHERE id=$1`, [chapterId]);
+  await audit(actorId, "chapter_delete", null, { id: chapterId, title: ch[0].title });
+  return ch[0].title;
+}
+
 /** Добавить позицию в раздел (в конец). Возвращает id новой позиции. */
 export async function addEntry(
   chapterId: string,
