@@ -1269,7 +1269,7 @@ async function applyAddWizard(ctx: Context, st: Dlg, value: string, changed: () 
 /** Ответ на callback (всплывашка) — best-effort: НИКОГДА не бросает. Просроченный
  *  или битый callback иначе валит обработчик → вебхук 500 → Telegram ретраит и
  *  при многих 500 отключает вебхук. Сам ack некритичен, его провал глотаем. */
-async function ack(ctx: Context, opts?: { text?: string }) {
+async function ack(ctx: Context, opts?: { text?: string; show_alert?: boolean }) {
   try {
     await ctx.answerCallbackQuery(opts);
   } catch (e) {
