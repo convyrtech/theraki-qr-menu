@@ -240,6 +240,84 @@ export async function addChapter(
   return id;
 }
 
+// Разделы напитков: их порядок в хвосте меню фиксирован (сайт сливает их в одну
+// секцию «Напитки»), перемещать их и вставлять после них — нельзя.
+const FIXED_CHAPTERS = new Set(["soft", "tea", "beer"]);
+
+/**
+ * Переместить раздел: поставить после afterId (null = в самое начало).
+ * Перенумерация всех разделов ОДНИМ атомарным UPDATE (unnest) — параллельная
+ * правка второго админа не оставит дырок/дублей порядка.
+ */
+export async function moveChapterAfter(
+  chapterId: string,
+  afterId: string | null,
+  actorId: number,
+): Promise<{ title: string; afterTitle: string | null }> {
+  if (chapterId === afterId) throw new Error("Раздел нельзя поставить после самого себя.");
+  if (FIXED_CHAPTERS.has(chapterId)) throw new Error("Разделы напитков перемещать нельзя.");
+  if (afterId && FIXED_CHAPTERS.has(afterId)) throw new Error("После напитков вставлять нельзя.");
+  const rows = (await dbQuery(`SELECT id, title FROM chapters ORDER BY sort_order`)) as unknown as {
+    id: string;
+    title: string;
+  }[];
+  const moving = rows.find((r) => r.id === chapterId);
+  if (!moving) throw new Error("Раздел не найден.");
+  const after = afterId ? rows.find((r) => r.id === afterId) : null;
+  if (afterId && !after) throw new Error("Целевой раздел не найден.");
+  // Новый порядок: обычные главы без перемещаемой, вставка после цели (или в начало);
+  // напитковые главы всегда остаются хвостом в своём текущем взаимном порядке.
+  const normal = rows.filter((r) => r.id !== chapterId && !FIXED_CHAPTERS.has(r.id));
+  const drinks = rows.filter((r) => r.id !== chapterId && FIXED_CHAPTERS.has(r.id));
+  const at = afterId ? normal.findIndex((r) => r.id === afterId) + 1 : 0;
+  normal.splice(at, 0, moving);
+  const ids = [...normal, ...drinks].map((r) => r.id);
+  await dbQuery(
+    `UPDATE chapters c SET sort_order = v.ord - 1
+       FROM (SELECT unnest($1::text[]) AS id, generate_subscripts($1::text[], 1) AS ord) v
+      WHERE c.id = v.id`,
+    [ids],
+  );
+  await audit(actorId, "chapter_move", null, { id: chapterId, title: moving.title, after: after?.title ?? "(в начало)" });
+  return { title: moving.title, afterTitle: after?.title ?? null };
+}
+
+/**
+ * Переместить позицию внутри её раздела: после afterEntryId (null = первой).
+ * Та же атомарная перенумерация одним UPDATE.
+ */
+export async function moveEntryAfter(
+  entryId: number,
+  afterEntryId: number | null,
+  actorId: number,
+): Promise<{ name: string; afterName: string | null }> {
+  if (entryId === afterEntryId) throw new Error("Позицию нельзя поставить после самой себя.");
+  const cur = (await dbQuery(
+    `SELECT chapter_id, name FROM entries WHERE id=$1 AND NOT is_deleted`,
+    [entryId],
+  )) as unknown as { chapter_id: string; name: string }[];
+  if (!cur.length) throw new Error("Позиция не найдена.");
+  const rows = (await dbQuery(
+    `SELECT id, name FROM entries WHERE chapter_id=$1 AND NOT is_deleted ORDER BY sort_order`,
+    [cur[0].chapter_id],
+  )) as unknown as { id: number; name: string }[];
+  const moving = rows.find((r) => r.id === entryId)!;
+  const after = afterEntryId ? rows.find((r) => r.id === afterEntryId) : null;
+  if (afterEntryId && !after) throw new Error("Целевая позиция не найдена (возможно, удалена).");
+  const rest = rows.filter((r) => r.id !== entryId);
+  const at = afterEntryId ? rest.findIndex((r) => r.id === afterEntryId) + 1 : 0;
+  rest.splice(at, 0, moving);
+  const ids = rest.map((r) => r.id);
+  await dbQuery(
+    `UPDATE entries e SET sort_order = v.ord - 1
+       FROM (SELECT unnest($1::int[]) AS id, generate_subscripts($1::int[], 1) AS ord) v
+      WHERE e.id = v.id`,
+    [ids],
+  );
+  await audit(actorId, "entry_move", entryId, { name: moving.name, after: after?.name ?? "(первой)" });
+  return { name: moving.name, afterName: after?.name ?? null };
+}
+
 /** Добавить позицию в раздел (в конец). Возвращает id новой позиции. */
 export async function addEntry(
   chapterId: string,

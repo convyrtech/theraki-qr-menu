@@ -33,22 +33,10 @@ const cartItemOf = (e: MenuEntry) => {
 // Данные меню приходят пропсами (БД через getMenuForPage() или фолбэк на
 // menu.ts). Секции «Раки» и «Напитки» собираются из этих данных в buildSections.
 const DRINK_IDS = ["soft", "tea", "beer"];
-const MENU_ORDER = [
-  "crab",
-  "raki",
-  "starters",
-  "shrimp",
-  "salads",
-  "hot",
-  "soups",
-  "mussels",
-  "mains",
-  "garnish",
-  "vongole",
-  "sauces",
-  "desserts",
-  "drinks",
-];
+// Порядок секций теперь диктует БД (chapters.sort_order, правится ботом «↕️
+// Переместить раздел»). Спец-правила: «Раки» — сразу после краба (доска, не глава);
+// «Напитки» (слияние soft+tea+beer) — на месте первого напиткового раздела.
+// NB: фолбэк на статический menu.ts отдаёт порядок массива menu.ts (сид-порядок).
 
 type RakiData = {
   id: string;
@@ -92,23 +80,32 @@ function buildSections(chapters: Chapter[], raki: RakiData) {
       return ch.entries.map((e): MenuEntry => ({ ...e, group: e.group ?? (id === "beer" ? "Пиво" : undefined) }));
     }),
   };
-  const RAW_SECTIONS = [
-    RAKI_SECTION,
-    ...chapters.filter((c) => !DRINK_IDS.includes(c.id)),
-    DRINKS_SECTION,
-  ];
-  // Сначала — в заданном порядке MENU_ORDER; затем ДОБАВЛЯЕМ в конец любые главы
-  // из БД, которых нет в MENU_ORDER (иначе новый/переименованный раздел молча
-  // исчезал бы с витрины, оставаясь в боте и БД).
-  const ordered = MENU_ORDER.map((id) => RAW_SECTIONS.find((section) => section.id === id)).filter(
-    (section): section is NonNullable<typeof section> => Boolean(section),
-  );
-  const known = new Set(MENU_ORDER);
-  const extra = RAW_SECTIONS.filter((section) => !known.has(section.id));
+  // Секции строго в порядке БД (sort_order из бота). Раки вставляются сразу
+  // после краба (если краба нет — первыми); «Напитки» — на месте первого
+  // напиткового раздела (они слиты в одну секцию и живут в конце меню).
+  const sections: (typeof RAKI_SECTION | Chapter | typeof DRINKS_SECTION)[] = [];
+  let rakiPlaced = false;
+  let drinksPlaced = false;
+  for (const c of chapters) {
+    if (DRINK_IDS.includes(c.id)) {
+      if (!drinksPlaced) {
+        sections.push(DRINKS_SECTION);
+        drinksPlaced = true;
+      }
+      continue;
+    }
+    sections.push(c);
+    if (c.id === "crab" && !rakiPlaced) {
+      sections.push(RAKI_SECTION);
+      rakiPlaced = true;
+    }
+  }
+  if (!rakiPlaced) sections.unshift(RAKI_SECTION);
+  if (!drinksPlaced) sections.push(DRINKS_SECTION);
   // Пустые видимые главы (создали категорию без позиций / всё в стоп-листе) не
   // рендерим — иначе болтающийся заголовок + пустая панель + пустая пилюля (аудит M6).
   // Раки держим всегда (рисуются доской, не entries).
-  return [...ordered, ...extra].filter((section) => section.id === "raki" || section.entries.length > 0);
+  return sections.filter((section) => section.id === "raki" || section.entries.length > 0);
 }
 
 // Категории-списки (без фото): компактный текст, не карточки. Стиль теперь из БД

@@ -23,6 +23,8 @@ import {
   updateVariant,
   deleteVariant,
   parseVariant,
+  moveChapterAfter,
+  moveEntryAfter,
 } from "./menu-write-db";
 import { getState, setState, clearState, claimUpdate } from "./bot-state-db";
 import { tableBill, openTables, closeTable, type TableBill, type OpenTable } from "./orders-admin-db";
@@ -64,6 +66,7 @@ const HELP_TEXT = [
   "<b>Разделы</b>",
   "• /menu — список всех разделов.",
   "• «➕ Добавить категорию» — пишете название и выбираете вид на сайте: 🖼 карточки с фото или 📋 простой список.",
+  "• «↕️ Переместить раздел» (внутри раздела) — нажмите раздел, ПОСЛЕ которого он должен стоять. Напитки всегда в конце.",
   "",
   "<b>Блюдо</b> (нажать раздел → блюдо):",
   "• 🙈 Скрыть / ♻️ Вернуть — стоп-лист (закончилось / снова есть). Скрытое помечено ⛔ и гостям не видно.",
@@ -72,6 +75,7 @@ const HELP_TEXT = [
   "• 📐 Форматы — доп. подача, пишется «метка = цена», например 0,5 кг = 1450",
   "• ◆ Фирменная · 🌶 Острая — метки-значки",
   "• 🖼 Фото — пришлите фото прямо в чат (можно как файл). Бот сам сожмёт его для сайта. «-» убирает фото.",
+  "• ↕️ Переместить — поменять порядок блюд внутри раздела (нажмите блюдо, после которого поставить).",
   "• 🗑 Удалить (с переспросом). Вернуть удалённое — команда /deleted",
   "• «➕ Добавить позицию» — название → цена → дальше дозаполняете кнопками.",
   "",
@@ -188,6 +192,8 @@ export async function renderEntryList(
     kb.text(`${mark}${e.name} — ${rub(e.price)}`, `e:${e.id}`).row();
   }
   kb.text("➕ Добавить позицию", `addentry:${chapterId}`).row();
+  // Напитковые разделы держатся в конце меню — их не перемещаем.
+  if (!DRINK_CHAPTERS.has(chapterId)) kb.text("↕️ Переместить раздел", `mvch:${chapterId}`).row();
   kb.text("◀️ К разделам", "menu");
   const text = `<b>${esc(meta.title)}</b>\nПозиций: ${entries.length}${hidden ? ` · скрыто ${hidden}` : ""}`;
   return { text, keyboard: kb };
@@ -235,8 +241,49 @@ export async function renderEntryCard(
   // Метки: ◆ всегда; 🌶 — только для не-напитков.
   kb.text(e.signature ? "◆ убрать" : "◆ фирменная", `flag:${e.id}:signature`);
   if (!isDrink) kb.text(e.spicy ? "🌶 убрать" : "🌶 острая", `flag:${e.id}:spicy`);
-  kb.row().text("🗑 Удалить", `del:${e.id}`).row().text("◀️ Назад", `ch:${e.chapterId}`);
+  kb.row().text("↕️ Переместить", `mvent:${e.id}`).text("🗑 Удалить", `del:${e.id}`).row().text("◀️ Назад", `ch:${e.chapterId}`);
   return { text: lines.join("\n"), keyboard: kb };
+}
+
+/** Экран выбора нового места для раздела: «после какого раздела поставить». */
+export async function renderChapterMoveTargets(
+  chapterId: string,
+): Promise<{ text: string; keyboard: InlineKeyboard } | null> {
+  const chapters = await listChapters();
+  const moving = chapters.find((c) => c.id === chapterId);
+  if (!moving) return null;
+  const kb = new InlineKeyboard();
+  kb.text("⏫ В самое начало", `mvchto:${chapterId}:_top`).row();
+  for (const c of chapters) {
+    if (c.id === chapterId || DRINK_CHAPTERS.has(c.id)) continue;
+    kb.text(`после: ${c.title}`, `mvchto:${chapterId}:${c.id}`).row();
+  }
+  kb.text("✖️ Отмена", `ch:${chapterId}`);
+  const text =
+    `↕️ <b>Куда поставить раздел «${esc(moving.title)}»?</b>\n` +
+    `Нажмите раздел, ПОСЛЕ которого он должен стоять (или «В самое начало»).\n` +
+    `Напитки всегда остаются в конце меню.`;
+  return { text, keyboard: kb };
+}
+
+/** Экран выбора нового места для позиции внутри её раздела. */
+export async function renderEntryMoveTargets(
+  entryId: number,
+): Promise<{ text: string; keyboard: InlineKeyboard } | null> {
+  const e = await getEntry(entryId);
+  if (!e) return null;
+  const entries = await listEntries(e.chapterId);
+  const kb = new InlineKeyboard();
+  kb.text("⏫ Первой в разделе", `mventto:${entryId}:_top`).row();
+  for (const it of entries) {
+    if (it.id === entryId) continue;
+    kb.text(`после: ${it.name.slice(0, 28)}`, `mventto:${entryId}:${it.id}`).row();
+  }
+  kb.text("✖️ Отмена", `e:${entryId}`);
+  const text =
+    `↕️ <b>Куда поставить «${esc(e.name)}»?</b>\n` +
+    `Нажмите блюдо, ПОСЛЕ которого оно должно стоять (или «Первой»).`;
+  return { text, keyboard: kb };
 }
 
 /** Экран доски раков: размеры (цены/кг) + способы приготовления. */
@@ -515,6 +562,51 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     if (!res) return void ack(ctx, { text: "Позиция не найдена." });
     await editTo(ctx, res.text, res.keyboard);
     await ack(ctx);
+  });
+
+  // --- Перемещение разделов и позиций ------------------------------------
+  bot.callbackQuery(/^mvch:(.+)$/, async (ctx) => {
+    const res = await renderChapterMoveTargets(ctx.match![1]);
+    if (!res) return void ack(ctx, { text: "Раздел не найден." });
+    await editTo(ctx, res.text, res.keyboard);
+    await ack(ctx);
+  });
+
+  bot.callbackQuery(/^mvchto:([^:]+):(.+)$/, async (ctx) => {
+    const [, chapterId, target] = ctx.match!;
+    try {
+      const r = await moveChapterAfter(chapterId, target === "_top" ? null : target, ctx.from!.id);
+      await changed();
+      const res = await renderChapterList();
+      await editTo(ctx, res.text, res.keyboard);
+      await ack(ctx, {
+        text: r.afterTitle ? `«${r.title}» теперь после «${r.afterTitle}»` : `«${r.title}» теперь в начале`,
+      });
+    } catch (e) {
+      await ack(ctx, { text: errText(e) });
+    }
+  });
+
+  bot.callbackQuery(/^mvent:(\d+)$/, async (ctx) => {
+    const res = await renderEntryMoveTargets(Number(ctx.match![1]));
+    if (!res) return void ack(ctx, { text: "Позиция не найдена." });
+    await editTo(ctx, res.text, res.keyboard);
+    await ack(ctx);
+  });
+
+  bot.callbackQuery(/^mventto:(\d+):(.+)$/, async (ctx) => {
+    const id = Number(ctx.match![1]);
+    const target = ctx.match![2];
+    try {
+      const r = await moveEntryAfter(id, target === "_top" ? null : Number(target), ctx.from!.id);
+      await changed();
+      await rerenderCard(ctx, id);
+      await ack(ctx, {
+        text: r.afterName ? `«${r.name}» теперь после «${r.afterName.slice(0, 30)}»` : `«${r.name}» теперь первая`,
+      });
+    } catch (e) {
+      await ack(ctx, { text: errText(e) });
+    }
   });
 
   // --- Операции «в один тап» ---------------------------------------------

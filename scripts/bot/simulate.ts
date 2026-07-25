@@ -422,6 +422,35 @@ async function main() {
   await check("цена «1e9» отклонена", (await getEntry(id))!.price === before.price);
   await bot.handleUpdate(msg(ADMIN, "/cancel"));
 
+  // === ПЕРЕМЕЩЕНИЕ (разделы и позиции, self-cleaning) ===
+  console.log("\n=== ПЕРЕМЕЩЕНИЕ ===");
+  const chOrder = async () => (await getChapters()).map((c) => c.id).join(",");
+  const order0 = await chOrder();
+  // Экран выбора места: есть «В самое начало» и целевые разделы, напитков среди целей нет
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "mvch:starters"));
+  const mvBtns = calls.find((c) => c.buttons)?.buttons ?? [];
+  await check("экран перемещения раздела открылся", mvBtns.some((b) => b.includes("начало")));
+  await check("напитки не предлагаются как цель", !mvBtns.some((b) => b.includes("Пиво") || b.includes("Безалког")));
+  // Переместить «Закуски» после «Салатов» → проверить порядок → вернуть
+  await bot.handleUpdate(cb(ADMIN, "mvchto:starters:salads"));
+  const moved = await chOrder();
+  await check("раздел переместился (закуски после салатов)", moved.indexOf("salads") < moved.indexOf("starters"));
+  await bot.handleUpdate(cb(ADMIN, "mvchto:starters:crab"));
+  await check("порядок разделов возвращён", (await chOrder()) === order0);
+  // Напитковый раздел двигать нельзя
+  calls.length = 0;
+  await bot.handleUpdate(cb(ADMIN, "mvchto:beer:crab"));
+  await check("перемещение напитков отклонено", (await chOrder()) === order0);
+  // Позиция: в «Гарнирах» две — поменять местами → вернуть
+  const g = await listEntries("garnish");
+  const eOrder = async () => (await listEntries("garnish")).map((e) => e.id).join(",");
+  const eo0 = await eOrder();
+  await bot.handleUpdate(cb(ADMIN, `mventto:${g[1].id}:_top`));
+  await check("позиция стала первой", (await listEntries("garnish"))[0].id === g[1].id);
+  await bot.handleUpdate(cb(ADMIN, `mventto:${g[1].id}:${g[0].id}`));
+  await check("порядок позиций возвращён", (await eOrder()) === eo0);
+
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }
 
