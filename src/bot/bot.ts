@@ -7,7 +7,7 @@
 import { Bot, InlineKeyboard, InputFile, type Context } from "grammy";
 import sharp from "sharp";
 import { savePhotoBytes, deletePhotoBytes } from "./photo-db";
-import { firstSentence, escapeHtml } from "@/lib/text";
+import { firstSentence, escapeHtml, stamp } from "@/lib/text";
 import { listChapters, listEntries, getEntry, listDeleted, getChapterMeta, exportAll } from "./menu-admin-db";
 import {
   setHidden,
@@ -26,6 +26,9 @@ import {
   moveChapterAfter,
   moveEntryAfter,
   deleteChapter,
+  setChapterTitle,
+  setChapterLayout,
+  setChapterLede,
 } from "./menu-write-db";
 import { getState, setState, clearState, claimUpdate } from "./bot-state-db";
 import { tableBill, openTables, closeTable, type TableBill, type OpenTable } from "./orders-admin-db";
@@ -33,6 +36,7 @@ import { ordersChatId, ordersEnabled } from "@/lib/orders";
 import {
   getBoard,
   setSizePrice,
+  setSizeCount,
   addRecipe,
   renameRecipe,
   setRecipeSurcharge,
@@ -69,6 +73,7 @@ const HELP_TEXT = [
   "• «➕ Добавить категорию» — пишете название и выбираете вид на сайте: 🖼 карточки с фото или 📋 простой список.",
   "• «↕️ Переместить раздел» (внутри раздела) — нажмите раздел, ПОСЛЕ которого он должен стоять. Напитки всегда в конце.",
   "• «🗑 Удалить раздел» — только для пустого раздела (сначала удалите/перенесите блюда).",
+  "• «✏️ Название раздела» · «📝 Подзаголовок» · «🔁 Вид» (карточки ↔ список) — внутри раздела.",
   "",
   "<b>Блюдо</b> (нажать раздел → блюдо):",
   "• 🙈 Скрыть / ♻️ Вернуть — стоп-лист (закончилось / снова есть). Скрытое помечено ⛔ и гостям не видно.",
@@ -81,7 +86,9 @@ const HELP_TEXT = [
   "• 🗑 Удалить (с переспросом). Вернуть удалённое — команда /deleted",
   "• «➕ Добавить позицию» — название → цена → дальше дозаполняете кнопками.",
   "",
-  "<b>Раки</b> (кнопка 🦞): цены по размерам S–XXL и рецепты (отварные/жареные).",
+  "• 🍺 Крепость и 🏷 Подгруппа (Воды/Газировки/Чай/Кофе…) — у напитков.",
+  "",
+  "<b>Раки</b> (кнопка 🦞): по каждому размеру S–XXL — цена и «шт/кг»; рецепты (отварные/жареные).",
   "",
   "<b>Ещё</b>",
   "• /export — прислать бэкап всего меню файлом.",
@@ -194,12 +201,18 @@ export async function renderEntryList(
     kb.text(`${mark}${e.name} — ${rub(e.price)}`, `e:${e.id}`).row();
   }
   kb.text("➕ Добавить позицию", `addentry:${chapterId}`).row();
-  // Напитковые разделы держатся в конце меню — их не перемещаем и не удаляем.
+  // Напитковые разделы держатся в конце меню и слиты на сайте в одну секцию —
+  // их не перемещаем, не удаляем и не переоформляем.
   if (!DRINK_CHAPTERS.has(chapterId)) {
+    kb.text("✏️ Название раздела", `chname:${chapterId}`)
+      .text("📝 Подзаголовок", `chlede:${chapterId}`)
+      .row();
+    kb.text(meta.layout === "cards" ? "🔁 Вид: карточки → список" : "🔁 Вид: список → карточки", `chstyle:${chapterId}`).row();
     kb.text("↕️ Переместить раздел", `mvch:${chapterId}`).text("🗑 Удалить раздел", `delch:${chapterId}`).row();
   }
   kb.text("◀️ К разделам", "menu");
-  const text = `<b>${esc(meta.title)}</b>\nПозиций: ${entries.length}${hidden ? ` · скрыто ${hidden}` : ""}`;
+  const ledeLine = meta.lede ? `\n<i>${esc(meta.lede)}</i>` : "";
+  const text = `<b>${esc(meta.title)}</b>${ledeLine}\nПозиций: ${entries.length}${hidden ? ` · скрыто ${hidden}` : ""}`;
   return { text, keyboard: kb };
 }
 
@@ -218,6 +231,7 @@ export async function renderEntryCard(
     lines.push(`📐 Форматы: ${e.variants.map((v) => `${esc(v.label)} — ${rub(v.price)}`).join(" · ")}`);
   }
   if (e.abv) lines.push(`🍺 Крепость: ${esc(e.abv)}`);
+  if (DRINK_CHAPTERS.has(e.chapterId) && e.groupLabel) lines.push(`🏷 Подгруппа: ${esc(e.groupLabel)}`);
   // Острота у напитков — бессмысленна (замечание владельца): не показываем ни в
   // тексте, ни кнопкой для разделов напитков.
   const isDrink = DRINK_CHAPTERS.has(e.chapterId);
@@ -242,6 +256,8 @@ export async function renderEntryCard(
     .row()
     .text(e.photo ? "🖼 Заменить фото" : "🖼 Добавить фото", `photo:${e.id}`)
     .row();
+  // Напиткам — крепость и подгруппа (Воды/Газировки/Чай/…), гость видит их на сайте.
+  if (isDrink) kb.text("🍺 Крепость", `abv:${e.id}`).text("🏷 Подгруппа", `grp:${e.id}`).row();
   // Метки: ◆ всегда; 🌶 — только для не-напитков.
   kb.text(e.signature ? "◆ убрать" : "◆ фирменная", `flag:${e.id}:signature`);
   if (!isDrink) kb.text(e.spicy ? "🌶 убрать" : "🌶 острая", `flag:${e.id}:spicy`);
@@ -344,13 +360,17 @@ export async function renderRakiRecipe(
     `Надбавка: ${r.surcharge ? esc(r.surcharge) : "—"}`,
     `Острый: ${r.spicy ? "🌶 да" : "нет"}`,
   ];
+  // Кнопки-мутации несут отпечаток имени рецепта (stamp): если второй админ
+  // параллельно изменил список и индекс «поехал», тап со старого экрана будет
+  // отклонён («откройте заново»), а не применён к чужому рецепту (аудит M5).
+  const st = stamp(r.name);
   const kb = new InlineKeyboard()
-    .text("✏️ Переименовать", `rrecname:${prepId}:${idx}`)
+    .text("✏️ Переименовать", `rrecname:${prepId}:${idx}:${st}`)
     .row()
-    .text("💵 Надбавка", `rrecsur:${prepId}:${idx}`)
-    .text(r.spicy ? "🌶 убрать" : "🌶 острый", `rrecspicy:${prepId}:${idx}`)
+    .text("💵 Надбавка", `rrecsur:${prepId}:${idx}:${st}`)
+    .text(r.spicy ? "🌶 убрать" : "🌶 острый", `rrecspicy:${prepId}:${idx}:${st}`)
     .row()
-    .text("🗑 Удалить рецепт", `rrecdel:${prepId}:${idx}`)
+    .text("🗑 Удалить рецепт", `rrecdel:${prepId}:${idx}:${st}`)
     .row()
     .text("◀️ Назад", `rprep:${prepId}`);
   return { text: lines.join("\n"), keyboard: kb };
@@ -367,7 +387,9 @@ export async function renderVariants(
   if (e.variants.length) {
     e.variants.forEach((v, i) => {
       lines.push(`  ${i + 1}. ${esc(v.label)} — ${rub(v.price)}`);
-      kb.text(`✏️ ${v.label}`, `varedit:${entryId}:${i}`).text("🗑", `vardel:${entryId}:${i}`).row();
+      // stamp(label) — защита от правки не той строки при гонке двух админов (M5).
+      const vs = stamp(v.label);
+      kb.text(`✏️ ${v.label}`, `varedit:${entryId}:${i}:${vs}`).text("🗑", `vardel:${entryId}:${i}:${vs}`).row();
     });
   } else {
     lines.push("<i>Форматов пока нет.</i>");
@@ -378,12 +400,23 @@ export async function renderVariants(
 }
 
 // Подписи диалогов ввода: какое поле правим и как просим ввести.
-const TEXT_PROMPTS: Record<string, { field: "name" | "unit" | "noteShort" | "note"; prompt: string; allowEmpty: boolean }> = {
+const TEXT_PROMPTS: Record<
+  string,
+  { field: "name" | "unit" | "noteShort" | "note" | "abv" | "group"; prompt: string; allowEmpty: boolean }
+> = {
   price: { field: "name", prompt: "", allowEmpty: false }, // price обрабатывается отдельно
   name: { field: "name", prompt: "✏️ Отправьте новое <b>название</b> позиции.", allowEmpty: false },
   unit: { field: "unit", prompt: "⚖️ Отправьте <b>грамовку</b> (напр. «180 г», «0,5 л», «кг»). «-» — убрать.", allowEmpty: true },
   short: { field: "noteShort", prompt: "📝 Отправьте <b>краткое описание</b> (одна строка для карточки). «-» — убрать.", allowEmpty: true },
   full: { field: "note", prompt: "📄 Отправьте <b>развёрнутое описание</b> (полный текст в детали). «-» — убрать.", allowEmpty: true },
+  abv: { field: "abv", prompt: "🍺 Отправьте <b>крепость</b> (например «4,7%»). «-» — убрать.", allowEmpty: true },
+  grp: {
+    field: "group",
+    prompt:
+      "🏷 Отправьте <b>подгруппу</b> напитка — под каким подзаголовком показать на сайте: " +
+      "«Воды», «Газировки», «Соки и морсы», «Чай», «Кофе», «Пиво». «-» — убрать.",
+    allowEmpty: true,
+  },
 };
 
 export type BotOptions = {
@@ -572,6 +605,48 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
+  // --- Правки раздела: название, подзаголовок, вид -------------------------
+  bot.callbackQuery(/^chname:(.+)$/, async (ctx) => {
+    const chapterId = ctx.match![1];
+    const meta = await getChapterMeta(chapterId);
+    if (!meta) return void ack(ctx, { text: "Раздел не найден." });
+    await setState(ctx.from!.id, "chname", null, { chapterId });
+    const kb = new InlineKeyboard().text("Отмена", `ch:${chapterId}`);
+    await editTo(ctx, `✏️ Отправьте новое <b>название</b> раздела «${esc(meta.title)}».\n\nИли /cancel.`, kb);
+    await ack(ctx);
+  });
+
+  bot.callbackQuery(/^chlede:(.+)$/, async (ctx) => {
+    const chapterId = ctx.match![1];
+    const meta = await getChapterMeta(chapterId);
+    if (!meta) return void ack(ctx, { text: "Раздел не найден." });
+    await setState(ctx.from!.id, "chlede", null, { chapterId });
+    const kb = new InlineKeyboard().text("Отмена", `ch:${chapterId}`);
+    await editTo(
+      ctx,
+      `📝 Отправьте <b>подзаголовок</b> раздела «${esc(meta.title)}» — строка под названием на сайте` +
+        `${meta.lede ? ` (сейчас: <i>${esc(meta.lede)}</i>)` : ""}. «-» — убрать.\n\nИли /cancel.`,
+      kb,
+    );
+    await ack(ctx);
+  });
+
+  bot.callbackQuery(/^chstyle:(.+)$/, async (ctx) => {
+    const chapterId = ctx.match![1];
+    try {
+      const meta = await getChapterMeta(chapterId);
+      if (!meta) return void ack(ctx, { text: "Раздел не найден." });
+      const next = meta.layout === "cards" ? "list" : "cards";
+      await setChapterLayout(chapterId, next, ctx.from!.id);
+      await changed();
+      const res = await renderEntryList(chapterId);
+      if (res) await editTo(ctx, res.text, res.keyboard);
+      await ack(ctx, { text: next === "list" ? "Теперь: 📋 простой список" : "Теперь: 🖼 карточки с фото" });
+    } catch (e) {
+      await ack(ctx, { text: errText(e) });
+    }
+  });
+
   // --- Удаление раздела (только пустого, с переспросом) --------------------
   bot.callbackQuery(/^delch:(.+)$/, async (ctx) => {
     const chapterId = ctx.match![1];
@@ -706,10 +781,13 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   // Восстановление удалённых
   bot.command("deleted", async (ctx) => {
     const rows = await listDeleted();
-    if (!rows.length) return void ctx.reply("Удалённых позиций нет.");
     const kb = new InlineKeyboard();
     for (const r of rows) kb.text(`♻️ ${r.name}`, `restore:${r.id}`).row();
-    await ctx.reply("Удалённые позиции — тап, чтобы восстановить:", { reply_markup: kb });
+    kb.text("◀️ К разделам", "menu");
+    await ctx.reply(
+      rows.length ? "Удалённые позиции — тап, чтобы восстановить:" : "Удалённых позиций нет.",
+      { reply_markup: kb },
+    );
   });
 
   bot.callbackQuery(/^restore:(\d+)$/, async (ctx) => {
@@ -725,7 +803,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
   });
 
   // --- Диалоги ввода: цена и текстовые поля ------------------------------
-  bot.callbackQuery(/^(price|unit|name|short|full):(\d+)$/, async (ctx) => {
+  bot.callbackQuery(/^(price|unit|name|short|full|abv|grp):(\d+)$/, async (ctx) => {
     const action = ctx.match![1];
     const id = Number(ctx.match![2]);
     await setState(ctx.from!.id, action, id);
@@ -745,11 +823,41 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
+  // Экран размера: цена И «шт/кг» (сезонная величина — правится отдельно).
   bot.callbackQuery(/^rsize:(.+)$/, async (ctx) => {
+    const tier = ctx.match![1];
+    const s = (await getBoard()).sizes.find((x) => x.tier === tier);
+    if (!s) return void ack(ctx, { text: "Размер не найден." });
+    const kb = new InlineKeyboard()
+      .text("💰 Цена за кг", `rszp:${tier}`)
+      .text("🦞 шт/кг", `rszc:${tier}`)
+      .row()
+      .text("◀️ К ракам", "raki");
+    await editTo(
+      ctx,
+      `Размер <b>${esc(tier)}</b>: ${esc(s.countPerKg)} шт/кг · <b>${rub(s.price)}</b>/кг\nЧто меняем?`,
+      kb,
+    );
+    await ack(ctx);
+  });
+
+  bot.callbackQuery(/^rszp:(.+)$/, async (ctx) => {
     const tier = ctx.match![1];
     await setState(ctx.from!.id, "rprice", null, { tier });
     const kb = new InlineKeyboard().text("Отмена", "raki");
-    await editTo(ctx, `💰 Отправьте новую <b>цену за кг</b> для размера <b>${tier}</b> (число).\n\nИли /cancel.`, kb);
+    await editTo(ctx, `💰 Отправьте новую <b>цену за кг</b> для размера <b>${esc(tier)}</b> (число).\n\nИли /cancel.`, kb);
+    await ack(ctx);
+  });
+
+  bot.callbackQuery(/^rszc:(.+)$/, async (ctx) => {
+    const tier = ctx.match![1];
+    await setState(ctx.from!.id, "rcount", null, { tier });
+    const kb = new InlineKeyboard().text("Отмена", "raki");
+    await editTo(
+      ctx,
+      `🦞 Отправьте новое <b>«шт/кг»</b> для размера <b>${esc(tier)}</b> — например <code>14–20</code>.\n\nИли /cancel.`,
+      kb,
+    );
     await ack(ctx);
   });
 
@@ -767,10 +875,23 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
-  bot.callbackQuery(/^rrecspicy:(.+):(\d+)$/, async (ctx) => {
+  /** Рецепт под индексом совпадает с тем, что видел админ на экране? (M5) */
+  async function recipeIfFresh(prepId: string, idx: number, st: string | undefined) {
+    const rec = (await getBoard()).preparations.find((p) => p.id === prepId)?.recipes[idx];
+    if (!rec || !st || stamp(rec.name) !== st) return null;
+    return rec;
+  }
+  const STALE = "Список изменился (правил второй админ?) — откройте экран заново.";
+
+  bot.callbackQuery(/^rrecspicy:([^:]+):(\d+)(?::([a-z0-9]+))?$/, async (ctx) => {
     const prepId = ctx.match![1];
     const idx = Number(ctx.match![2]);
     try {
+      if (!(await recipeIfFresh(prepId, idx, ctx.match![3]))) {
+        const res = await renderRakiPrep(prepId);
+        if (res) await editTo(ctx, res.text, res.keyboard);
+        return void ack(ctx, { text: STALE, show_alert: true });
+      }
       await toggleRecipeSpicy(prepId, idx, ctx.from!.id);
       await changed();
       const res = await renderRakiRecipe(prepId, idx);
@@ -781,10 +902,15 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     }
   });
 
-  bot.callbackQuery(/^rrecdel:(.+):(\d+)$/, async (ctx) => {
+  bot.callbackQuery(/^rrecdel:([^:]+):(\d+)(?::([a-z0-9]+))?$/, async (ctx) => {
     const prepId = ctx.match![1];
     const idx = Number(ctx.match![2]);
     try {
+      if (!(await recipeIfFresh(prepId, idx, ctx.match![3]))) {
+        const res = await renderRakiPrep(prepId);
+        if (res) await editTo(ctx, res.text, res.keyboard);
+        return void ack(ctx, { text: STALE, show_alert: true });
+      }
       await deleteRecipe(prepId, idx, ctx.from!.id);
       await changed();
       const res = await renderRakiPrep(prepId);
@@ -795,23 +921,23 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     }
   });
 
-  bot.callbackQuery(/^rrecname:(.+):(\d+)$/, async (ctx) => {
+  bot.callbackQuery(/^rrecname:([^:]+):(\d+)(?::([a-z0-9]+))?$/, async (ctx) => {
     const prepId = ctx.match![1];
     const idx = Number(ctx.match![2]);
-    const rec = (await getBoard()).preparations.find((p) => p.id === prepId)?.recipes[idx];
-    if (!rec) return void ack(ctx, { text: "Рецепт не найден (обновите экран)." });
-    await setState(ctx.from!.id, "rrecname", null, { prepId, idx });
+    const rec = await recipeIfFresh(prepId, idx, ctx.match![3]);
+    if (!rec) return void ack(ctx, { text: STALE, show_alert: true });
+    await setState(ctx.from!.id, "rrecname", null, { prepId, idx, st: ctx.match![3] });
     const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
     await editTo(ctx, `✏️ Новое <b>название</b> для рецепта «${esc(rec.name)}».\n\nИли /cancel.`, kb);
     await ack(ctx);
   });
 
-  bot.callbackQuery(/^rrecsur:(.+):(\d+)$/, async (ctx) => {
+  bot.callbackQuery(/^rrecsur:([^:]+):(\d+)(?::([a-z0-9]+))?$/, async (ctx) => {
     const prepId = ctx.match![1];
     const idx = Number(ctx.match![2]);
-    const rec = (await getBoard()).preparations.find((p) => p.id === prepId)?.recipes[idx];
-    if (!rec) return void ack(ctx, { text: "Рецепт не найден (обновите экран)." });
-    await setState(ctx.from!.id, "rrecsur", null, { prepId, idx });
+    const rec = await recipeIfFresh(prepId, idx, ctx.match![3]);
+    if (!rec) return void ack(ctx, { text: STALE, show_alert: true });
+    await setState(ctx.from!.id, "rrecsur", null, { prepId, idx, st: ctx.match![3] });
     const kb = new InlineKeyboard().text("Отмена", `rrec:${prepId}:${idx}`);
     await editTo(ctx, `💵 <b>Надбавка</b> для рецепта «${esc(rec.name)}» (например «+1 000 ₽»). «-» — убрать.\n\nИли /cancel.`, kb);
     await ack(ctx);
@@ -855,12 +981,16 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
-  bot.callbackQuery(/^varedit:(\d+):(\d+)$/, async (ctx) => {
+  bot.callbackQuery(/^varedit:(\d+):(\d+)(?::([a-z0-9]+))?$/, async (ctx) => {
     const id = Number(ctx.match![1]);
     const idx = Number(ctx.match![2]);
     const v = (await getEntry(id))?.variants[idx];
-    if (!v) return void ack(ctx, { text: "Формат не найден (обновите экран)." });
-    await setState(ctx.from!.id, "varedit", id, { idx });
+    if (!v || !ctx.match![3] || stamp(v.label) !== ctx.match![3]) {
+      const res = await renderVariants(id);
+      if (res) await editTo(ctx, res.text, res.keyboard);
+      return void ack(ctx, { text: STALE, show_alert: true });
+    }
+    await setState(ctx.from!.id, "varedit", id, { idx, st: ctx.match![3] });
     const kb = new InlineKeyboard().text("Отмена", `vars:${id}`);
     await editTo(
       ctx,
@@ -870,10 +1000,16 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     await ack(ctx);
   });
 
-  bot.callbackQuery(/^vardel:(\d+):(\d+)$/, async (ctx) => {
+  bot.callbackQuery(/^vardel:(\d+):(\d+)(?::([a-z0-9]+))?$/, async (ctx) => {
     const id = Number(ctx.match![1]);
     const idx = Number(ctx.match![2]);
     try {
+      const v = (await getEntry(id))?.variants[idx];
+      if (!v || !ctx.match![3] || stamp(v.label) !== ctx.match![3]) {
+        const res = await renderVariants(id);
+        if (res) await editTo(ctx, res.text, res.keyboard);
+        return void ack(ctx, { text: STALE, show_alert: true });
+      }
       await deleteVariant(id, idx, ctx.from!.id);
       await changed();
       const res = await renderVariants(id);
@@ -980,7 +1116,7 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     const value = ctx.message.text.trim();
 
     // Раки-диалоги (данные в payload, entryId=null) — обрабатываем отдельно.
-    if (["rprice", "rrecname", "rrecsur", "raddrec"].includes(st.action)) {
+    if (["rprice", "rcount", "rrecname", "rrecsur", "raddrec"].includes(st.action)) {
       try {
         await applyRakiInput(ctx, st, value, changed);
       } catch (e) {
@@ -997,6 +1133,28 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
         await replyDialogErr(ctx, e);
       }
       return;
+    }
+
+    // Правки раздела: название / подзаголовок (chapterId в payload).
+    if (st.action === "chname" || st.action === "chlede") {
+      const chapterId = String((st.payload as { chapterId?: string }).chapterId ?? "");
+      try {
+        if (st.action === "chname") await setChapterTitle(chapterId, value, ctx.from!.id);
+        else await setChapterLede(chapterId, value === "-" ? null : value, ctx.from!.id);
+        await clearState(ctx.from!.id);
+        await changed();
+        const res = await renderEntryList(chapterId);
+        await ctx.reply("✓ Сохранено.");
+        if (res) await ctx.reply(res.text, { parse_mode: "HTML", reply_markup: res.keyboard });
+      } catch (e) {
+        await replyDialogErr(ctx, e);
+      }
+      return;
+    }
+
+    // Ждём выбор стиля КНОПКОЙ — текст не должен молча стирать введённое название.
+    if (st.action === "addcatlayout") {
+      return void ctx.reply("Выберите вид кнопками выше 👆 — 🖼 карточки или 📋 список. Или /cancel.");
     }
 
     // Название новой категории → предложить выбор стиля кнопками.
@@ -1075,8 +1233,31 @@ export function createBot(token: string, opts: BotOptions = {}): Bot {
     }
   });
 
+  // Стикер/голос/видео и прочие типы: не молчим (владелец в диалоге не поймёт,
+  // почему «ничего не происходит»), подсказываем. Регистрируется ПОСЛЕ
+  // message:text и message:photo — те не зовут next(), сюда падает остальное.
+  bot.on("message", async (ctx) => {
+    if (ctx.chat?.type !== "private") return;
+    const st = await getState(ctx.from!.id);
+    await ctx
+      .reply(
+        st
+          ? "Я жду текст" + (st.action === "photo" || st.action === "addphoto" ? " или фото" : "") + ". Или /cancel."
+          : "Не понял. /menu — открыть разделы меню.",
+      )
+      .catch(() => {});
+  });
+
   bot.catch((err) => {
     console.error("[bot] ошибка обработки апдейта:", err.error);
+    // Пользователь не должен остаться с «крутящейся» кнопкой или молчанием:
+    // best-effort сообщаем об ошибке (навигационные хендлеры без своих try/catch).
+    const ctx = err.ctx;
+    if (ctx?.callbackQuery) {
+      void ctx.answerCallbackQuery({ text: "Ошибка (сеть/база?). Попробуйте ещё раз." }).catch(() => {});
+    } else if (ctx?.message && ctx.chat?.type === "private") {
+      void ctx.reply("Ошибка (сеть/база?). Попробуйте ещё раз или /menu.").catch(() => {});
+    }
   });
 
   return bot;
@@ -1123,7 +1304,7 @@ async function applyRakiInput(
   changed: () => Promise<void>,
 ) {
   const uid = ctx.from!.id;
-  const p = st.payload as { tier?: string; prepId?: string; idx?: number };
+  const p = st.payload as { tier?: string; prepId?: string; idx?: number; st?: string };
   const reply = (r: { text: string; keyboard: InlineKeyboard } | null, ok: string) => {
     void ctx.reply(ok);
     if (r) return ctx.reply(r.text, { parse_mode: "HTML", reply_markup: r.keyboard });
@@ -1145,17 +1326,30 @@ async function applyRakiInput(
     await changed();
     return void reply(await renderRakiPrep(p.prepId!), "✓ Рецепт добавлен.");
   }
-  if (st.action === "rrecname") {
-    await renameRecipe(p.prepId!, p.idx!, value, uid);
-    await clearState(uid);
-    await changed();
-    return void reply(await renderRakiRecipe(p.prepId!, p.idx!), "✓ Переименовано.");
-  }
-  if (st.action === "rrecsur") {
+  if (st.action === "rrecname" || st.action === "rrecsur") {
+    // Перед применением сверяем отпечаток: за время диалога второй админ мог
+    // изменить список, и индекс указывал бы на другой рецепт (M5).
+    const cur = (await getBoard()).preparations.find((x) => x.id === p.prepId)?.recipes[p.idx as number];
+    if (!cur || !p.st || stamp(cur.name) !== p.st) {
+      await clearState(uid);
+      throw new Error("Рецепт изменился параллельно — откройте его заново.");
+    }
+    if (st.action === "rrecname") {
+      await renameRecipe(p.prepId!, p.idx!, value, uid);
+      await clearState(uid);
+      await changed();
+      return void reply(await renderRakiRecipe(p.prepId!, p.idx!), "✓ Переименовано.");
+    }
     await setRecipeSurcharge(p.prepId!, p.idx!, value === "-" ? null : value, uid);
     await clearState(uid);
     await changed();
     return void reply(await renderRakiRecipe(p.prepId!, p.idx!), "✓ Надбавка обновлена.");
+  }
+  if (st.action === "rcount") {
+    await setSizeCount(p.tier!, value, uid);
+    await clearState(uid);
+    await changed();
+    return void reply(await renderRakiBoard(), "✓ «шт/кг» обновлено.");
   }
 }
 
@@ -1189,7 +1383,18 @@ async function applyVariantInput(ctx: Context, st: Dlg, value: string, changed: 
     return void ctx.reply("Формат: «метка = цена», например «0,5 кг = 1450». Ещё раз или /cancel.");
   }
   if (st.action === "varadd") await addVariant(st.entryId!, parsed.label, parsed.price, uid);
-  else await updateVariant(st.entryId!, Number(st.payload.idx), parsed.label, parsed.price, uid);
+  else {
+    // Сверка отпечатка перед правкой по индексу — за время диалога второй админ
+    // мог изменить список форматов (M5).
+    const idx = Number(st.payload.idx);
+    const vst = (st.payload as { st?: string }).st;
+    const cur = (await getEntry(st.entryId!))?.variants[idx];
+    if (!cur || !vst || stamp(cur.label) !== vst) {
+      await clearState(uid);
+      throw new Error("Формат изменился параллельно — откройте список форматов заново.");
+    }
+    await updateVariant(st.entryId!, idx, parsed.label, parsed.price, uid);
+  }
   await clearState(uid);
   await changed();
   const res = await renderVariants(st.entryId!);

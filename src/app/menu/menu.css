@@ -466,6 +466,8 @@ body:has(.mn) { background: #ffffff; }
 
 /* маркеры из дока: чили (острота) / помидор — выверенные вручную глифы */
 .mn__mark { display: inline-flex; align-items: center; vertical-align: -2px; margin-left: 7px; }
+/* ◆ «фирменное» — редкий смысловой акцент (DESIGN: алый, деликатно, без тяжести) */
+.mn__mark--sig { color: #e11308; font-size: 0.5em; vertical-align: 3px; }
 .mn__glyph { width: 14px; height: 14px; flex: 0 0 auto; }
 .mn__glyph--chili { color: #be6a4a; }
 .mn__glyph--tomato { color: #e11308; }

@@ -69,6 +69,18 @@ export async function setSizePrice(tier: string, price: number, actorId: number)
   await save(data, version, actorId, "raki_price", { tier, old, new: price });
 }
 
+/** «шт/кг» размера (например «14–20») — сезонная величина, гость видит её в доске. */
+export async function setSizeCount(tier: string, countPerKg: string, actorId: number): Promise<void> {
+  const v = countPerKg.trim();
+  if (!v || v.length > 12) throw new Error("Формат: короткая строка, например 14–20.");
+  const { data, version } = await loadForEdit();
+  const s = data.sizes.find((x) => x.tier === tier);
+  if (!s) throw new Error(`Размер «${tier}» не найден.`);
+  const old = s.countPerKg;
+  s.countPerKg = v;
+  await save(data, version, actorId, "raki_count", { tier, old, new: v });
+}
+
 function prep(data: RakiBoardData, prepId: string): RakiPrep {
   const p = data.preparations.find((x) => x.id === prepId);
   if (!p) throw new Error(`Способ «${prepId}» не найден.`);

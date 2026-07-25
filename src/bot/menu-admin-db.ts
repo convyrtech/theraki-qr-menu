@@ -80,11 +80,12 @@ export async function exportAll(): Promise<{
 }
 
 /** Название одной главы (лёгкий запрос вместо полного listChapters). */
-export async function getChapterMeta(chapterId: string): Promise<{ id: string; title: string } | null> {
-  const rows = (await dbQuery(`SELECT id, title FROM chapters WHERE id=$1`, [chapterId])) as unknown as {
-    id: string;
-    title: string;
-  }[];
+export async function getChapterMeta(
+  chapterId: string,
+): Promise<{ id: string; title: string; layout: "cards" | "list"; lede: string | null } | null> {
+  const rows = (await dbQuery(`SELECT id, title, layout, lede FROM chapters WHERE id=$1`, [
+    chapterId,
+  ])) as unknown as { id: string; title: string; layout: "cards" | "list"; lede: string | null }[];
   return rows.length ? rows[0] : null;
 }
 

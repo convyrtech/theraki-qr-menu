@@ -6,6 +6,7 @@ import type { UserFromGetMe } from "grammy/types";
 import { createBot } from "../../src/bot/bot";
 import { neon } from "@neondatabase/serverless";
 import { listEntries, getEntry } from "../../src/bot/menu-admin-db";
+import { stamp } from "../../src/lib/text";
 import { getBoard } from "../../src/bot/raki-write-db";
 import { getChapters } from "../../src/lib/menu-db";
 import { savePhotoBytes, getPhotoBytes } from "../../src/bot/photo-db";
@@ -206,30 +207,46 @@ async function main() {
   await bot.handleUpdate(cb(ADMIN, "raki"));
   await check("доска раков открывается (есть кнопки размеров/способов)", (calls[0]?.buttons?.length ?? 0) >= 5);
 
-  // Цена размера M: 9999 → откат
+  // Цена размера M: экран размера → «Цена» → 9999 → откат
   await bot.handleUpdate(cb(ADMIN, "rsize:M"));
+  await bot.handleUpdate(cb(ADMIN, "rszp:M"));
   await bot.handleUpdate(msg(ADMIN, "9999"));
   await check("цена M = 9999", (await getBoard()).sizes.find((s) => s.tier === "M")!.price === 9999);
-  await bot.handleUpdate(cb(ADMIN, "rsize:M"));
+  await bot.handleUpdate(cb(ADMIN, "rszp:M"));
   await bot.handleUpdate(msg(ADMIN, String(mPrice0)));
   await check("цена M возвращена", (await getBoard()).sizes.find((s) => s.tier === "M")!.price === mPrice0);
 
-  // Добавить рецепт в Отварные → удалить
+  // «шт/кг» размера M → откат (новая операция)
+  const mCount0 = board0.sizes.find((s) => s.tier === "M")!.countPerKg;
+  await bot.handleUpdate(cb(ADMIN, "rszc:M"));
+  await bot.handleUpdate(msg(ADMIN, "1–2"));
+  await check("шт/кг M = 1–2", (await getBoard()).sizes.find((s) => s.tier === "M")!.countPerKg === "1–2");
+  await bot.handleUpdate(cb(ADMIN, "rszc:M"));
+  await bot.handleUpdate(msg(ADMIN, mCount0));
+  await check("шт/кг M возвращено", (await getBoard()).sizes.find((s) => s.tier === "M")!.countPerKg === mCount0);
+
+  // Добавить рецепт в Отварные → удалить (кнопки теперь со штампом имени)
   await bot.handleUpdate(cb(ADMIN, "raddrec:boiled"));
   await bot.handleUpdate(msg(ADMIN, "ТЕСТ-РЕЦЕПТ"));
   const afterAdd = await getBoard();
   const boiled = afterAdd.preparations.find((p) => p.id === "boiled")!;
   await check("рецепт добавлен (+1)", boiled.recipes.length === boiledLen0 + 1);
   await check("новый рецепт последний = ТЕСТ-РЕЦЕПТ", boiled.recipes[boiled.recipes.length - 1].name === "ТЕСТ-РЕЦЕПТ");
-  await bot.handleUpdate(cb(ADMIN, `rrecdel:boiled:${boiled.recipes.length - 1}`));
+  await bot.handleUpdate(cb(ADMIN, `rrecdel:boiled:${boiled.recipes.length - 1}:${stamp("ТЕСТ-РЕЦЕПТ")}`));
   await check("рецепт удалён (обратно)", (await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes.length === boiledLen0);
 
-  // Метка острый на рецепте 0 → откат
-  const sp0 = (await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false;
-  await bot.handleUpdate(cb(ADMIN, "rrecspicy:boiled:0"));
+  // Метка острый на рецепте 0 → откат (со штампом)
+  const rec0 = (await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0];
+  const sp0 = rec0.spicy ?? false;
+  await bot.handleUpdate(cb(ADMIN, `rrecspicy:boiled:0:${stamp(rec0.name)}`));
   await check("острый инвертирован", ((await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false) === !sp0);
-  await bot.handleUpdate(cb(ADMIN, "rrecspicy:boiled:0"));
+  await bot.handleUpdate(cb(ADMIN, `rrecspicy:boiled:0:${stamp(rec0.name)}`));
   await check("острый возвращён", ((await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false) === sp0);
+
+  // Гонка двух админов (M5): кнопка с НЕВЕРНЫМ штампом должна быть отклонена
+  await bot.handleUpdate(cb(ADMIN, `rrecspicy:boiled:0:zzzzzz`));
+  await check("тап с устаревшим штампом отклонён (spicy не изменился)",
+    ((await getBoard()).preparations.find((p) => p.id === "boiled")!.recipes[0].spicy ?? false) === sp0);
 
   // === ФОРМАТЫ ПОДАЧИ (variants) на позиции id (self-cleaning) ===
   console.log("\n=== ФОРМАТЫ (variants, позиция id " + id + ") ===");
@@ -239,11 +256,14 @@ async function main() {
   let v = (await getEntry(id))!.variants;
   await check("формат добавлен (+1)", v.length === vlen0 + 1);
   await check("значения формата верны", v[v.length - 1].label === "0,5 кг" && v[v.length - 1].price === 1450);
-  await bot.handleUpdate(cb(ADMIN, `varedit:${id}:${v.length - 1}`));
+  await bot.handleUpdate(cb(ADMIN, `varedit:${id}:${v.length - 1}:${stamp("0,5 кг")}`));
   await bot.handleUpdate(msg(ADMIN, "1 кг = 3000"));
   v = (await getEntry(id))!.variants;
   await check("формат отредактирован", v[v.length - 1].label === "1 кг" && v[v.length - 1].price === 3000);
-  await bot.handleUpdate(cb(ADMIN, `vardel:${id}:${v.length - 1}`));
+  // Неверный штамп (второй админ поменял список) → удаление отклонено
+  await bot.handleUpdate(cb(ADMIN, `vardel:${id}:${v.length - 1}:zzzzzz`));
+  await check("vardel с устаревшим штампом отклонён", (await getEntry(id))!.variants.length === vlen0 + 1);
+  await bot.handleUpdate(cb(ADMIN, `vardel:${id}:${v.length - 1}:${stamp("1 кг")}`));
   await check("формат удалён (обратно)", (await getEntry(id))!.variants.length === vlen0);
 
   // === МАСТЕР ДОБАВЛЕНИЯ (название→цена→грамовка→описание→фото со «Пропустить») ===
@@ -472,6 +492,60 @@ async function main() {
   await check("позиция стала первой", (await listEntries("garnish"))[0].id === g[1].id);
   await bot.handleUpdate(cb(ADMIN, `mventto:${g[1].id}:${g[0].id}`));
   await check("порядок позиций возвращён", (await eOrder()) === eo0);
+
+  // === РАЗДЕЛ: название / подзаголовок / вид (self-cleaning) ===
+  console.log("\n=== РАЗДЕЛ: название/подзаголовок/вид ===");
+  const gch = async () => (await getChapters()).find((c) => c.id === "garnish")!;
+  const gMeta0 = await gch();
+  await bot.handleUpdate(cb(ADMIN, "chname:garnish"));
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-ГАРНИРЫ"));
+  await check("раздел переименован", (await gch()).title === "ТЕСТ-ГАРНИРЫ");
+  await bot.handleUpdate(cb(ADMIN, "chname:garnish"));
+  await bot.handleUpdate(msg(ADMIN, gMeta0.title));
+  await check("название раздела возвращено", (await gch()).title === gMeta0.title);
+  const lede0 = gMeta0.lede ?? null;
+  await bot.handleUpdate(cb(ADMIN, "chlede:garnish"));
+  await bot.handleUpdate(msg(ADMIN, "Тестовый подзаголовок."));
+  await check("подзаголовок задан", (await gch()).lede === "Тестовый подзаголовок.");
+  await bot.handleUpdate(cb(ADMIN, "chlede:garnish"));
+  await bot.handleUpdate(msg(ADMIN, lede0 ?? "-"));
+  await check("подзаголовок возвращён", ((await gch()).lede ?? null) === lede0);
+  const lay0 = gMeta0.layout ?? "cards";
+  await bot.handleUpdate(cb(ADMIN, "chstyle:garnish"));
+  await check("вид раздела переключён", ((await gch()).layout ?? "cards") !== lay0);
+  await bot.handleUpdate(cb(ADMIN, "chstyle:garnish"));
+  await check("вид раздела возвращён", ((await gch()).layout ?? "cards") === lay0);
+
+  // === НАПИТКИ: крепость и подгруппа (self-cleaning) ===
+  console.log("\n=== НАПИТКИ: крепость/подгруппа ===");
+  const beerE = (await listEntries("beer"))[0];
+  const beer0 = (await getEntry(beerE.id))!;
+  await bot.handleUpdate(cb(ADMIN, `abv:${beerE.id}`));
+  await bot.handleUpdate(msg(ADMIN, "9,9%"));
+  await check("крепость задана", (await getEntry(beerE.id))!.abv === "9,9%");
+  await bot.handleUpdate(cb(ADMIN, `abv:${beerE.id}`));
+  await bot.handleUpdate(msg(ADMIN, beer0.abv ?? "-"));
+  await check("крепость возвращена", ((await getEntry(beerE.id))!.abv ?? null) === (beer0.abv ?? null));
+  await bot.handleUpdate(cb(ADMIN, `grp:${beerE.id}`));
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-ГРУППА"));
+  await check("подгруппа задана", (await getEntry(beerE.id))!.groupLabel === "ТЕСТ-ГРУППА");
+  await bot.handleUpdate(cb(ADMIN, `grp:${beerE.id}`));
+  await bot.handleUpdate(msg(ADMIN, beer0.groupLabel ?? "-"));
+  await check("подгруппа возвращена", ((await getEntry(beerE.id))!.groupLabel ?? null) === (beer0.groupLabel ?? null));
+
+  // === ТЕКСТ НА ШАГЕ ВЫБОРА СТИЛЯ не стирает имя новой категории ===
+  console.log("\n=== МАСТЕР КАТЕГОРИИ: текст на шаге стиля ===");
+  await bot.handleUpdate(cb(ADMIN, "addchapter"));
+  await bot.handleUpdate(msg(ADMIN, "ТЕСТ-СТИЛЬ"));
+  calls.length = 0;
+  await bot.handleUpdate(msg(ADMIN, "случайный текст вместо кнопки"));
+  await check("подсказка про кнопки (имя не потеряно)", calls.some((c) => (c.text ?? "").includes("кнопками")));
+  await bot.handleUpdate(cb(ADMIN, "addcatgo:list"));
+  const styleCat = (await getChapters()).find((c) => c.title === "ТЕСТ-СТИЛЬ");
+  await check("категория создана после подсказки", !!styleCat);
+  await bot.handleUpdate(cb(ADMIN, `delch:${styleCat!.id}`));
+  await bot.handleUpdate(cb(ADMIN, `delchyes:${styleCat!.id}`));
+  await check("тест-категория стиля удалена", !(await getChapters()).some((c) => c.title === "ТЕСТ-СТИЛЬ"));
 
   console.log("\nСимуляция завершена (БД возвращена в исходное состояние).");
 }

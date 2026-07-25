@@ -132,7 +132,16 @@ const LABEL: Record<string, string> = {
 };
 
 function sectionTitle(section: { id: string; title: string }) {
-  return LABEL[section.id] ?? section.title;
+  // Источник истины — title из БД (правится ботом «✏️ Название раздела»);
+  // LABEL — только фолбэк для статического menu.ts без кураторских названий.
+  return section.title || LABEL[section.id] || section.id;
+}
+
+/** Короткое имя для пилюли навигации: кураторское NAV_LABEL, пока раздел не
+ * переименован; после переименования — честно показываем новое название. */
+function navTitle(section: { id: string; title: string }) {
+  if (NAV_LABEL[section.id] && LABEL[section.id] === section.title) return NAV_LABEL[section.id];
+  return sectionTitle(section);
 }
 
 // Типограф на РЕНДЕРЕ (контент в menu.ts не меняется):
@@ -968,7 +977,7 @@ export function MenuView({ chapters, rakiChapter, ordersEnabled = false }: { cha
               className={"mn__tab" + (active === sec.id ? " is-active" : "")}
               onClick={() => pick(sec.id)}
             >
-              {NAV_LABEL[sec.id] ?? sectionTitle(sec)}
+              {navTitle(sec)}
             </button>
           ))}
         </nav>
@@ -1004,6 +1013,7 @@ export function MenuView({ chapters, rakiChapter, ordersEnabled = false }: { cha
                         {hasDrinkLogo ? <DrinkBadge entry={e} /> : null}
                         <span className="mn__row-name">
                           {typo(e.name)}
+                          {e.signature ? <span className="mn__mark mn__mark--sig" title="фирменное">◆</span> : null}
                           {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
                         </span>
                         <span className="mn__row-price">
@@ -1064,6 +1074,7 @@ export function MenuView({ chapters, rakiChapter, ordersEnabled = false }: { cha
                     <div className="mn__card-body">
                       <h3 className="mn__card-name">
                         {typo(e.name)}
+                        {e.signature ? <span className="mn__mark mn__mark--sig" title="фирменное">◆</span> : null}
                         {e.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
                       </h3>
                     <span className="mn__card-price">{fmtP(e.price) + " ₽" + (e.unit === "кг" ? " / кг" : "")}</span>
@@ -1143,6 +1154,7 @@ function DishDetail({ entry, onClose }: { entry: MenuEntry; onClose: () => void 
         ) : null}
         <h3 className="mn__detail-name">
           {typo(entry.name)}
+          {entry.signature ? <span className="mn__mark mn__mark--sig" title="фирменное">◆</span> : null}
           {entry.spicy ? <span className="mn__mark" title="остро">{ChiliIcon}</span> : null}
         </h3>
         {entry.note ? (

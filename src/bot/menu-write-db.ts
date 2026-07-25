@@ -52,7 +52,14 @@ export async function setPrice(entryId: number, price: number, actorId: number):
 }
 
 /** Текстовые поля: name / note (развёрнутое) / note_short (краткое) / unit (грамовка). */
-const TEXT_FIELDS = { name: "name", note: "note", noteShort: "note_short", unit: "unit" } as const;
+const TEXT_FIELDS = {
+  name: "name",
+  note: "note",
+  noteShort: "note_short",
+  unit: "unit",
+  abv: "abv",
+  group: "group_label",
+} as const;
 export type TextField = keyof typeof TEXT_FIELDS;
 
 export async function setText(
@@ -322,6 +329,43 @@ export async function moveEntryAfter(
   );
   await audit(actorId, "entry_move", entryId, { name: moving.name, after: after?.name ?? "(первой)" });
   return { name: moving.name, afterName: after?.name ?? null };
+}
+
+/** Переименовать раздел. Сайт показывает title из БД (после ухода от LABEL-хардкода). */
+export async function setChapterTitle(chapterId: string, title: string, actorId: number): Promise<void> {
+  const t = title.trim();
+  if (!t) throw new Error("Название раздела пустое.");
+  const rows = (await dbQuery(`SELECT title FROM chapters WHERE id=$1`, [chapterId])) as unknown as {
+    title: string;
+  }[];
+  if (!rows.length) throw new Error("Раздел не найден.");
+  await dbQuery(`UPDATE chapters SET title=$2 WHERE id=$1`, [chapterId, t]);
+  await audit(actorId, "chapter_title", null, { id: chapterId, old: rows[0].title, new: t });
+}
+
+/** Сменить вид раздела на сайте: карточки ↔ список. */
+export async function setChapterLayout(
+  chapterId: string,
+  layout: "cards" | "list",
+  actorId: number,
+): Promise<void> {
+  if (layout !== "cards" && layout !== "list") throw new Error("Неверный стиль.");
+  const rows = (await dbQuery(`SELECT layout FROM chapters WHERE id=$1`, [chapterId])) as unknown as {
+    layout: string;
+  }[];
+  if (!rows.length) throw new Error("Раздел не найден.");
+  await dbQuery(`UPDATE chapters SET layout=$2 WHERE id=$1`, [chapterId, layout]);
+  await audit(actorId, "chapter_layout", null, { id: chapterId, old: rows[0].layout, new: layout });
+}
+
+/** Подзаголовок раздела (lede) — строка под названием на сайте; null — убрать. */
+export async function setChapterLede(chapterId: string, lede: string | null, actorId: number): Promise<void> {
+  const rows = (await dbQuery(`SELECT lede FROM chapters WHERE id=$1`, [chapterId])) as unknown as {
+    lede: string | null;
+  }[];
+  if (!rows.length) throw new Error("Раздел не найден.");
+  await dbQuery(`UPDATE chapters SET lede=$2 WHERE id=$1`, [chapterId, lede]);
+  await audit(actorId, "chapter_lede", null, { id: chapterId, old: rows[0].lede, new: lede });
 }
 
 /**

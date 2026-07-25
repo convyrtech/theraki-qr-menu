@@ -17,3 +17,16 @@ export function firstSentence(s: string): string {
 export function escapeHtml(s: string | null | undefined): string {
   return (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+/**
+ * Короткий отпечаток значения для callback_data (защита от гонки двух админов,
+ * аудит M5): кнопка «удалить/править №i» несёт отпечаток значения, каким его
+ * видел админ; если к моменту тапа элемент под индексом сменился — отпечаток
+ * не совпадёт и бот попросит открыть список заново, вместо правки не той строки.
+ * Не криптография — djb2 в base36, 6 символов (callback_data ограничен 64 байтами).
+ */
+export function stamp(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36).slice(0, 6);
+}
