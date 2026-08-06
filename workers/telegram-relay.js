@@ -27,7 +27,9 @@ const relay = {
     }
 
     const telegramPath = incoming.pathname.slice(prefix.length - 1);
-    if (!/^\/bot\d+:[A-Za-z0-9_-]+\/[A-Za-z0-9_]+$/.test(telegramPath)) {
+    const botApiCall = /^\/bot\d+:[A-Za-z0-9_-]+\/[A-Za-z0-9_]+$/.test(telegramPath);
+    const telegramFile = /^\/file\/bot\d+:[A-Za-z0-9_-]+\/[A-Za-z0-9._/-]+$/.test(telegramPath);
+    if (!botApiCall && !telegramFile) {
       return new Response("Not found", { status: 404 });
     }
 

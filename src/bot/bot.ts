@@ -1362,7 +1362,10 @@ async function applyPhotoUpload(ctx: Context, entryId: number) {
   if (!token) throw new Error("нет токена бота.");
   const file = await ctx.getFile(); // работает и для photo, и для document
   if (!file.file_path) throw new Error("не удалось получить файл.");
-  const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+  // Selectel cannot reach Telegram directly. Use the same optional relay as the
+  // Bot API client, including for the separate /file endpoint.
+  const apiRoot = (process.env.TG_API_ROOT || "https://api.telegram.org").replace(/\/+$/, "");
+  const res = await fetch(`${apiRoot}/file/bot${token}/${file.file_path}`);
   if (!res.ok) throw new Error("не удалось скачать файл из Telegram.");
   const input = Buffer.from(await res.arrayBuffer());
   // rotate() — учесть EXIF-ориентацию телефона; ресайз до 1000px; WebP q80.
