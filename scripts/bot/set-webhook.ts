@@ -11,7 +11,8 @@ if (!token) throw new Error("TG_BOT_TOKEN не задан.");
 const arg = process.argv[2];
 
 async function main() {
-  const bot = new Bot(token!);
+  const apiRoot = process.env.TG_API_ROOT;
+  const bot = new Bot(token!, apiRoot ? { client: { apiRoot } } : undefined);
   if (arg === "--delete") {
     await bot.api.deleteWebhook({ drop_pending_updates: false });
     console.log("Вебхук снят.");

@@ -426,7 +426,8 @@ export type BotOptions = {
 
 // --- Сборка бота --------------------------------------------------------
 export function createBot(token: string, opts: BotOptions = {}): Bot {
-  const bot = new Bot(token);
+  const apiRoot = process.env.TG_API_ROOT;
+  const bot = new Bot(token, apiRoot ? { client: { apiRoot } } : undefined);
   const changed = async () => {
     try {
       await opts.onMenuChanged?.();
