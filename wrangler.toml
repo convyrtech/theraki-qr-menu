@@ -1,0 +1,5 @@
+name = "theraki-tg-relay"
+main = "workers/telegram-relay.js"
+compatibility_date = "2026-08-06"
+compatibility_flags = ["global_fetch_strictly_public"]
+account_id = "8d2d7b49451f2d24ab92439dccc5da7a"

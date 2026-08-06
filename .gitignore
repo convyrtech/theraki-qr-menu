@@ -20,6 +20,7 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+.wrangler/
 
 # рабочий мусор сессий (скрины, логи, референсы, выгрузки) — не для репо
 .playwright-mcp/
